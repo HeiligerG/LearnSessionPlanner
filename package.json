@@ -11,8 +11,9 @@
   "scripts": {
     "setup": "pnpm install",
     "clean": "rimraf node_modules dist build .next out && pnpm -r exec -- pnpm exec rimraf node_modules dist build .next out",
-    "dev": "echo 'Dev script will be configured when apps are added'",
-    "build": "echo 'Build script will be configured when apps are added'",
+    "dev": "pnpm --filter @repo/web dev",
+    "dev:web": "pnpm --filter @repo/web dev",
+    "build": "pnpm -r build",
     "lint": "echo 'Lint script will be configured when apps are added'"
   },
   "keywords": [

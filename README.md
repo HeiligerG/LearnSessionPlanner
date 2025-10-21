@@ -16,10 +16,10 @@ A monorepo-based learning session planner for tracking daily, weekly, and custom
 ```
 learn-session-planner/
 ├── apps/
-│   ├── web/          # React frontend (Vite)
-│   └── api/          # NestJS backend
+│   ├── web/          # React frontend (Vite + TypeScript + React Router)
+│   └── api/          # NestJS backend (coming soon)
 ├── packages/
-│   ├── shared-types/ # Shared TypeScript types
+│   ├── shared-types/ # Shared TypeScript types (coming soon)
 │   └── eslint-config/# Shared linting config (optional)
 ├── pnpm-workspace.yaml
 ├── package.json
@@ -42,11 +42,19 @@ learn-session-planner/
 pnpm install
 ```
 
-### 2. Development (coming soon)
+### 2. Development
+
+Start the web frontend (runs on http://localhost:3000):
 
 ```bash
+# Start the web app
 pnpm dev
+
+# Or explicitly
+pnpm --filter @repo/web dev
 ```
+
+**Note:** The API backend setup is coming in the next phase.
 
 ### 3. Build all packages
 

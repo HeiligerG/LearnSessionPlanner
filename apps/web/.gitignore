@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+*.local
+
+# Environment variables
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Vite cache
+.vite
+
+# Test coverage
+coverage
+.nyc_output
