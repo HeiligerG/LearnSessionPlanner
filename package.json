@@ -1,0 +1,31 @@
+{
+  "name": "learn-session-planner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A monorepo-based learning session planner for tracking daily, weekly, and custom learning sessions",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "setup": "pnpm install",
+    "clean": "rimraf node_modules dist build .next out && pnpm -r exec -- pnpm exec rimraf node_modules dist build .next out",
+    "dev": "echo 'Dev script will be configured when apps are added'",
+    "build": "echo 'Build script will be configured when apps are added'",
+    "lint": "echo 'Lint script will be configured when apps are added'"
+  },
+  "keywords": [
+    "monorepo",
+    "learning",
+    "planner",
+    "react",
+    "nestjs",
+    "pnpm-workspace"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "rimraf": "^6.0.1"
+  }
+}
