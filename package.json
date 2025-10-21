@@ -17,7 +17,11 @@
     "dev:all": "concurrently \"pnpm dev:web\" \"pnpm dev:api\"",
     "build": "pnpm -r build",
     "build:api": "pnpm --filter @repo/api build",
+    "typecheck": "pnpm -r typecheck",
+    "typecheck:shared-types": "pnpm --filter @repo/shared-types typecheck",
     "lint": "echo 'Lint script will be configured when apps are added'",
+    "lint:all": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
     "prisma:generate": "pnpm --filter @repo/api prisma:generate",
     "prisma:migrate": "pnpm --filter @repo/api prisma:migrate:dev",
     "prisma:studio": "pnpm --filter @repo/api prisma:studio"

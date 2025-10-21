@@ -14,6 +14,7 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
+      "@repo/shared-types": ["../../packages/shared-types/src"],
       "@/*": ["src/*"],
       "@components/*": ["src/components/*"],
       "@pages/*": ["src/pages/*"],
@@ -22,5 +23,8 @@
       "@types/*": ["src/types/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/shared-types" }
+  ]
 }

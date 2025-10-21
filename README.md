@@ -24,7 +24,7 @@ learn-session-planner/
 │       │   └── config/      # Configuration services
 │       └── prisma/          # Database schema and migrations
 ├── packages/
-│   ├── shared-types/ # Shared TypeScript types (coming soon)
+│   ├── shared-types/ # Shared TypeScript types for API contracts
 │   └── eslint-config/# Shared linting config (optional)
 ├── pnpm-workspace.yaml
 ├── package.json
@@ -161,12 +161,42 @@ Docker Compose will orchestrate the following services:
 
 Configuration and setup instructions will be added once the applications are scaffolded.
 
+## Shared Packages
+
+### @repo/shared-types
+
+Shared TypeScript type definitions used across frontend and backend. Provides type-safe contracts for API communication.
+
+**Usage:**
+```typescript
+import { User, Session, CreateSessionDto } from '@repo/shared-types';
+```
+
+See `packages/shared-types/README.md` for details.
+
+**Key features:**
+- Type safety across the full stack
+- Single source of truth for data structures
+- No build step required (uses TypeScript source files directly)
+- TypeScript project references for incremental builds
+
 ## Development Workflow
 
 - **Web App** runs on http://localhost:3000
 - **API** runs on http://localhost:4000
 - Both support hot-reload during development
 - API client is configured via `VITE_API_URL` in `apps/web/.env`
+- Shared types are automatically linked via pnpm workspaces
+- Changes to shared-types are immediately reflected in both apps (no build step needed)
+
+**Type-checking:**
+```bash
+# Type-check all packages
+pnpm typecheck
+
+# Type-check shared-types only
+pnpm typecheck:shared-types
+```
 
 **Future:**
 - Debugging frontend and backend

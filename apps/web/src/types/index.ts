@@ -5,9 +5,9 @@
  * Add type files here as the application grows.
  */
 
-// Example: Export types from specific modules
-// export * from './session.types'
-// export * from './user.types'
-// export * from './progress.types'
+// Re-export shared types for convenience
+export * from '@repo/shared-types'
 
-export {}
+// Add web-specific types below
+// export * from './ui.types'
+// export * from './state.types'
