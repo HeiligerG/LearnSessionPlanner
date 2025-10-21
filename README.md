@@ -17,7 +17,12 @@ A monorepo-based learning session planner for tracking daily, weekly, and custom
 learn-session-planner/
 ├── apps/
 │   ├── web/          # React frontend (Vite + TypeScript + React Router)
-│   └── api/          # NestJS backend (coming soon)
+│   └── api/          # NestJS backend (TypeScript + Prisma + PostgreSQL)
+│       ├── src/
+│       │   ├── common/      # Shared utilities (Prisma service, etc.)
+│       │   ├── modules/     # Feature modules
+│       │   └── config/      # Configuration services
+│       └── prisma/          # Database schema and migrations
 ├── packages/
 │   ├── shared-types/ # Shared TypeScript types (coming soon)
 │   └── eslint-config/# Shared linting config (optional)
@@ -31,8 +36,8 @@ learn-session-planner/
 
 - Node.js 18+ (or 20+ recommended)
 - pnpm 9.x (`npm install -g pnpm`)
+- PostgreSQL 14+ (local installation or Docker)
 - Docker & Docker Compose (for containerized development)
-- PostgreSQL (via Docker or local install)
 
 ## Getting Started
 
@@ -42,31 +47,86 @@ learn-session-planner/
 pnpm install
 ```
 
-### 2. Development
+### 2. Database Setup
 
-Start the web frontend (runs on http://localhost:3000):
+Set up the PostgreSQL database and run migrations:
 
 ```bash
-# Start the web app
-pnpm dev
+# Set up environment variables
+cd apps/api
+cp .env.example .env
+# Edit .env with your PostgreSQL credentials
 
-# Or explicitly
-pnpm --filter @repo/web dev
+# Generate Prisma Client and run migrations
+cd ../..
+pnpm prisma:generate
+pnpm prisma:migrate
+
+# Optional: Seed database with test data
+pnpm --filter @repo/api prisma:seed
 ```
 
-**Note:** The API backend setup is coming in the next phase.
+### 3. Development
 
-### 3. Build all packages
+Start the development servers:
+
+```bash
+# Start the web frontend (runs on http://localhost:3000)
+pnpm dev:web
+
+# Start the API backend (in another terminal, runs on http://localhost:4000)
+pnpm dev:api
+
+# Or run both concurrently
+pnpm dev:all
+```
+
+**Web App:** http://localhost:3000
+**API:** http://localhost:4000
+
+### 4. Build all packages
 
 ```bash
 pnpm build
 ```
 
-### 4. Clean workspace
+### 5. Clean workspace
 
 ```bash
 pnpm clean
 ```
+
+## Database Management
+
+The API uses Prisma ORM with PostgreSQL.
+
+**Generate Prisma Client:**
+
+```bash
+pnpm prisma:generate
+```
+
+**Create and apply migrations:**
+
+```bash
+pnpm prisma:migrate
+```
+
+**Open Prisma Studio (database GUI):**
+
+```bash
+pnpm prisma:studio
+```
+
+Access at http://localhost:5555
+
+**Seed database:**
+
+```bash
+pnpm --filter @repo/api prisma:seed
+```
+
+For more details, see `apps/api/README.md`.
 
 ## Workspace Commands
 
@@ -101,13 +161,17 @@ Docker Compose will orchestrate the following services:
 
 Configuration and setup instructions will be added once the applications are scaffolded.
 
-## Development Workflow (coming soon)
+## Development Workflow
 
-Detailed instructions for:
-- Hot-reload development
+- **Web App** runs on http://localhost:3000
+- **API** runs on http://localhost:4000
+- Both support hot-reload during development
+- API client is configured via `VITE_API_URL` in `apps/web/.env`
+
+**Future:**
 - Debugging frontend and backend
 - Running tests
-- Database migrations with Prisma
+- CI/CD pipeline
 
 ## Contributing
 
