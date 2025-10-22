@@ -39,18 +39,27 @@ RUN pnpm --filter @repo/web build
 # Stage 3: Production (nginx)
 FROM nginx:alpine AS production
 
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 # Copy custom nginx configuration
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built static files
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
-# Expose port
-EXPOSE 80
+# Fix permissions for non-root user
+RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run /etc/nginx/conf.d
+
+# Expose port (unprivileged port for non-root user)
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+  CMD curl -fsS http://localhost:8080/ || exit 1
 
-# Start nginx (runs as root by default, nginx worker processes run as nginx user)
+# Run as non-root user
+USER nginx
+
+# Start nginx
 CMD ["nginx", "-g", "daemon off;"]

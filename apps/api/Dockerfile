@@ -55,23 +55,30 @@ RUN apk add --no-cache openssl
 # Install pnpm
 RUN npm install -g pnpm@9.15.4
 
-# Copy package files
+# Copy workspace configuration and lockfile
 COPY --from=builder /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/apps/api/package.json ./apps/api/
+COPY --from=builder /app/pnpm-lock.yaml ./
+COPY --from=builder /app/.npmrc ./ 2>/dev/null || true
 
-# Copy built application
+# Copy package.json files for workspace resolution
+COPY --from=builder /app/apps/api/package.json ./apps/api/
+COPY --from=builder /app/packages/shared-types/package.json ./packages/shared-types/
+
+# Copy built application and source files needed at runtime
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/packages/shared-types/package.json ./packages/shared-types/
 COPY --from=builder /app/packages/shared-types/dist ./packages/shared-types/dist
 
-# Copy generated Prisma client from builder
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+# Install production dependencies using pnpm deploy
+# This installs only the API package and its workspace dependencies
+RUN pnpm --filter @repo/api deploy --prod /prod/api
 
-# Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile
+# Move deployed files to working directory
+RUN cp -R /prod/api/* /app/apps/api/ && rm -rf /prod
+
+# Set working directory to API package
+WORKDIR /app/apps/api
 
 # Set environment
 ENV NODE_ENV=production
@@ -84,4 +91,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
   CMD node -e "require('http').get('http://localhost:4000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start application (migrations should be run separately as init job)
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["node", "dist/main.js"]

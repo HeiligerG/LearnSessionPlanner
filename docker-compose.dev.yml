@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
       target: dependencies
-    command: sh -c "pnpm --filter @repo/shared-types build && cd apps/api && pnpm prisma:migrate:dev && pnpm start:dev"
+    command: sh -c "cd apps/api && pnpm prisma:migrate:dev && pnpm start:dev"
     depends_on:
       - shared-types
     volumes:
@@ -43,7 +43,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       target: dependencies
-    command: sh -c "pnpm --filter @repo/shared-types build && cd apps/web && pnpm dev --host 0.0.0.0"
+    command: sh -c "cd apps/web && pnpm dev --host 0.0.0.0"
     depends_on:
       - shared-types
     volumes:
