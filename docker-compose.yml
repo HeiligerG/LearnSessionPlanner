@@ -3,7 +3,6 @@ version: '3.9'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: lsp-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -25,7 +24,6 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: lsp-api
     restart: unless-stopped
     depends_on:
       postgres:
@@ -38,7 +36,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
     ports:
       - "${API_PORT:-4000}:4000"
     networks:
@@ -50,12 +48,11 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api}
-    container_name: lsp-web
     restart: unless-stopped
     depends_on:
       - api
     ports:
-      - "${WEB_PORT:-3000}:80"
+      - "${WEB_PORT:-5173}:80"
     networks:
       - lsp-network
 

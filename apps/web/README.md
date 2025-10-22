@@ -67,7 +67,7 @@ pnpm --filter @repo/web dev
 pnpm dev
 ```
 
-The app will open automatically at [http://localhost:3000](http://localhost:3000)
+The app will open automatically at [http://localhost:5173](http://localhost:5173)
 
 ### Building for Production
 
@@ -137,7 +137,7 @@ Access in code via `import.meta.env.VITE_API_URL`.
 
 | Script       | Description                                    |
 | ------------ | ---------------------------------------------- |
-| `pnpm dev`   | Start development server (http://localhost:3000) |
+| `pnpm dev`   | Start development server (http://localhost:5173) |
 | `pnpm build` | Type-check and build for production           |
 | `pnpm preview` | Preview production build locally             |
 | `pnpm typecheck` | Run TypeScript type checking               |

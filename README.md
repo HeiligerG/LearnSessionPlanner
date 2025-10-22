@@ -71,7 +71,7 @@ pnpm --filter @repo/api prisma:seed
 Start the development servers:
 
 ```bash
-# Start the web frontend (runs on http://localhost:3000)
+# Start the web frontend (runs on http://localhost:5173)
 pnpm dev:web
 
 # Start the API backend (in another terminal, runs on http://localhost:4000)
@@ -81,7 +81,7 @@ pnpm dev:api
 pnpm dev:all
 ```
 
-**Web App:** http://localhost:3000
+**Web App:** http://localhost:5173
 **API:** http://localhost:4000
 
 ### 4. Build all packages
@@ -188,14 +188,12 @@ pnpm docker:dev
 Build and run optimized production images:
 
 ```bash
-# Set up Docker secrets (production only)
-echo "your-jwt-secret" | docker secret create jwt_secret -
-echo "your-refresh-secret" | docker secret create jwt_refresh_secret -
-echo "postgres" | docker secret create postgres_user -
-echo "secure-password" | docker secret create postgres_password -
+# Copy environment file and set production values
+cp .env.docker.example .env.docker
+# Edit .env.docker with production credentials
 
 # Start with production configuration
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.docker up -d
 
 # Or use the npm script
 pnpm docker:prod
@@ -205,8 +203,7 @@ pnpm docker:prod
 - Multi-stage builds with minimal final images
 - Health checks for all services
 - Resource limits and restart policies
-- Docker secrets for sensitive data
-- nginx reverse proxy (optional)
+- Environment-based configuration (use .env.docker for production secrets)
 
 ### Docker Commands
 
@@ -250,12 +247,12 @@ See [.env.docker.example](.env.docker.example) for all available configuration o
 
 This setup follows 2025 Docker best practices:
 - Multi-stage builds for minimal image sizes
-- Non-root users for security
 - Health checks for container orchestration
 - BuildKit cache mounts for faster builds
 - Separate dev/prod configurations
-- Docker secrets for production credentials
+- Environment-based configuration for credentials
 - Resource limits in production
+- Auto-generated container names to avoid conflicts
 
 ## Shared Packages
 
@@ -278,7 +275,7 @@ See `packages/shared-types/README.md` for details.
 
 ## Development Workflow
 
-- **Web App** runs on http://localhost:3000
+- **Web App** runs on http://localhost:5173
 - **API** runs on http://localhost:4000
 - Both support hot-reload during development
 - API client is configured via `VITE_API_URL` in `apps/web/.env`

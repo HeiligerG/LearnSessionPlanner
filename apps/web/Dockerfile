@@ -52,8 +52,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Run as non-root user
-USER nginx
-
-# Start nginx
+# Start nginx (runs as root by default, nginx worker processes run as nginx user)
 CMD ["nginx", "-g", "daemon off;"]

@@ -249,7 +249,12 @@ docker ps
 Migrations run automatically via `pnpm prisma:migrate:dev` on startup.
 
 **Production:**
-Migrations run via `pnpm prisma:migrate:deploy` before starting the application.
+The Prisma Client is pre-generated and copied from the builder stage. Migrations should be run separately as an init job or manually before deploying:
+
+```bash
+# Run migrations as a one-off command
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml run --rm api sh -c "cd apps/api && pnpm prisma:migrate:deploy"
+```
 
 ### Prisma in Docker
 
@@ -259,7 +264,7 @@ Prisma requires OpenSSL, which is installed in the Dockerfile:
 RUN apk add --no-cache openssl
 ```
 
-The Prisma Client is generated during the build stage and in production.
+The Prisma Client is generated during the build stage and copied to the production image for optimal performance.
 
 ## Future Enhancements
 

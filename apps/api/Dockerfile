@@ -66,11 +66,12 @@ COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/packages/shared-types/package.json ./packages/shared-types/
 COPY --from=builder /app/packages/shared-types/dist ./packages/shared-types/dist
 
+# Copy generated Prisma client from builder
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile
-
-# Generate Prisma Client in production
-RUN cd apps/api && pnpm prisma:generate
 
 # Set environment
 ENV NODE_ENV=production
@@ -82,5 +83,5 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
   CMD node -e "require('http').get('http://localhost:4000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Run database migrations and start application
-CMD ["sh", "-c", "cd apps/api && pnpm prisma:migrate:deploy && node dist/main.js"]
+# Start application (migrations should be run separately as init job)
+CMD ["node", "apps/api/dist/main.js"]
