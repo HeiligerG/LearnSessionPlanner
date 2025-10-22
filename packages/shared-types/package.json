@@ -24,10 +24,13 @@
     "build": "npm run build:esm && npm run build:cjs",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:watch": "tsc -w -p tsconfig.esm.json",
+    "build:watch:esm": "tsc -w -p tsconfig.esm.json",
+    "build:watch:cjs": "tsc -w -p tsconfig.cjs.json",
+    "build:watch": "concurrently \"npm run build:watch:esm\" \"npm run build:watch:cjs\"",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "typescript": "^5.6.3"
   }
 }
