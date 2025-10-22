@@ -1,5 +1,4 @@
-import type { Progress } from '../entities/progress.entity';
-import type { PaginatedResponse } from './common.dto';
+import type { PaginatedResponse, ISODateString } from './common.dto';
 
 /**
  * Create progress DTO
@@ -9,7 +8,7 @@ export interface CreateProgressDto {
   notes?: string;
   rating?: number;
   completionPercentage: number;
-  recordedAt?: Date | string;
+  recordedAt?: string;
 }
 
 /**
@@ -20,18 +19,27 @@ export interface UpdateProgressDto {
   notes?: string;
   rating?: number;
   completionPercentage?: number;
-  recordedAt?: Date | string;
+  recordedAt?: string;
 }
 
 /**
- * Progress response (alias for Progress entity)
+ * Progress response with ISO date strings for JSON serialization
  */
-export type ProgressResponse = Progress;
+export interface ProgressResponse {
+  id: string;
+  sessionId: string;
+  notes: string | null;
+  rating: number | null;
+  completionPercentage: number;
+  recordedAt: ISODateString;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
+}
 
 /**
  * Paginated progress list response
  */
-export type ProgressListResponse = PaginatedResponse<Progress>;
+export type ProgressListResponse = PaginatedResponse<ProgressResponse>;
 
 /**
  * Progress filters for query parameters
@@ -39,7 +47,7 @@ export type ProgressListResponse = PaginatedResponse<Progress>;
 export interface ProgressFilters {
   sessionId?: string;
   userId?: string;
-  recordedFrom?: Date | string;
-  recordedTo?: Date | string;
+  recordedFrom?: string;
+  recordedTo?: string;
   minRating?: number;
 }

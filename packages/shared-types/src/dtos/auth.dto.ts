@@ -1,4 +1,4 @@
-import type { User } from '../entities/user.entity';
+import type { UserResponse } from './user.dto';
 
 /**
  * User registration DTO
@@ -21,7 +21,7 @@ export interface LoginDto {
  * Authentication response with user and tokens
  */
 export interface AuthResponse {
-  user: User;
+  user: UserResponse;
   accessToken: string;
   refreshToken?: string;
   expiresIn: number;

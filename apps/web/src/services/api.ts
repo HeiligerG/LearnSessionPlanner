@@ -5,7 +5,17 @@
  * to the backend API. It uses the native Fetch API with proper error handling.
  */
 
-import type { ApiResponse } from '@repo/shared-types'
+import type {
+  ApiResponse,
+  LoginDto,
+  RegisterDto,
+  AuthResponse,
+  CreateSessionDto,
+  UpdateSessionDto,
+  SessionResponse,
+  SessionsListResponse,
+  SessionFilters,
+} from '@repo/shared-types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
@@ -110,6 +120,81 @@ export const apiClient = {
 
   delete: <T>(endpoint: string, options?: RequestInit) =>
     request<T>(endpoint, { ...options, method: 'DELETE' }),
+}
+
+/**
+ * Typed API helper methods using shared DTOs
+ */
+export const api = {
+  // Authentication endpoints
+  auth: {
+    /**
+     * User login
+     */
+    login(dto: LoginDto): Promise<ApiResponse<AuthResponse>> {
+      return apiClient.post<ApiResponse<AuthResponse>>('/auth/login', dto)
+    },
+
+    /**
+     * User registration
+     */
+    register(dto: RegisterDto): Promise<ApiResponse<AuthResponse>> {
+      return apiClient.post<ApiResponse<AuthResponse>>('/auth/register', dto)
+    },
+
+    /**
+     * User logout
+     */
+    logout(): Promise<ApiResponse<void>> {
+      return apiClient.post<ApiResponse<void>>('/auth/logout')
+    },
+  },
+
+  // Session endpoints
+  sessions: {
+    /**
+     * Get all sessions with optional filters
+     */
+    getAll(filters?: SessionFilters): Promise<ApiResponse<SessionsListResponse>> {
+      const params = new URLSearchParams()
+      if (filters?.category) params.append('category', filters.category)
+      if (filters?.completed !== undefined) params.append('completed', String(filters.completed))
+      if (filters?.scheduledFrom) params.append('scheduledFrom', filters.scheduledFrom)
+      if (filters?.scheduledTo) params.append('scheduledTo', filters.scheduledTo)
+      if (filters?.userId) params.append('userId', filters.userId)
+
+      const query = params.toString() ? `?${params.toString()}` : ''
+      return apiClient.get<ApiResponse<SessionsListResponse>>(`/sessions${query}`)
+    },
+
+    /**
+     * Get a single session by ID
+     */
+    getById(id: string): Promise<ApiResponse<SessionResponse>> {
+      return apiClient.get<ApiResponse<SessionResponse>>(`/sessions/${id}`)
+    },
+
+    /**
+     * Create a new session
+     */
+    create(dto: CreateSessionDto): Promise<ApiResponse<SessionResponse>> {
+      return apiClient.post<ApiResponse<SessionResponse>>('/sessions', dto)
+    },
+
+    /**
+     * Update an existing session
+     */
+    update(id: string, dto: UpdateSessionDto): Promise<ApiResponse<SessionResponse>> {
+      return apiClient.patch<ApiResponse<SessionResponse>>(`/sessions/${id}`, dto)
+    },
+
+    /**
+     * Delete a session
+     */
+    delete(id: string): Promise<ApiResponse<void>> {
+      return apiClient.delete<ApiResponse<void>>(`/sessions/${id}`)
+    },
+  },
 }
 
 /**

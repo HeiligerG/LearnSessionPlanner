@@ -1,4 +1,9 @@
 /**
+ * ISO 8601 date string for JSON serialization
+ */
+export type ISODateString = string;
+
+/**
  * Pagination query parameters
  */
 export interface PaginationQuery {

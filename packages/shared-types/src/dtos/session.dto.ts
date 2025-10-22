@@ -1,6 +1,5 @@
-import type { Session } from '../entities/session.entity';
 import type { SessionCategory } from '../enums/session-category.enum';
-import type { PaginatedResponse } from './common.dto';
+import type { PaginatedResponse, ISODateString } from './common.dto';
 
 /**
  * Create session DTO
@@ -10,7 +9,7 @@ export interface CreateSessionDto {
   description?: string;
   category: SessionCategory;
   duration: number;
-  scheduledFor?: Date | string;
+  scheduledFor?: string;
 }
 
 /**
@@ -21,19 +20,30 @@ export interface UpdateSessionDto {
   description?: string;
   category?: SessionCategory;
   duration?: number;
-  scheduledFor?: Date | string | null;
-  completedAt?: Date | string | null;
+  scheduledFor?: string | null;
+  completedAt?: string | null;
 }
 
 /**
- * Session response (alias for Session entity)
+ * Session response with ISO date strings for JSON serialization
  */
-export type SessionResponse = Session;
+export interface SessionResponse {
+  id: string;
+  title: string;
+  description: string | null;
+  category: SessionCategory;
+  duration: number;
+  scheduledFor: ISODateString | null;
+  completedAt: ISODateString | null;
+  userId: string;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
+}
 
 /**
  * Paginated sessions list response
  */
-export type SessionsListResponse = PaginatedResponse<Session>;
+export type SessionsListResponse = PaginatedResponse<SessionResponse>;
 
 /**
  * Session filters for query parameters
@@ -41,7 +51,7 @@ export type SessionsListResponse = PaginatedResponse<Session>;
 export interface SessionFilters {
   category?: SessionCategory;
   completed?: boolean;
-  scheduledFrom?: Date | string;
-  scheduledTo?: Date | string;
+  scheduledFrom?: string;
+  scheduledTo?: string;
   userId?: string;
 }

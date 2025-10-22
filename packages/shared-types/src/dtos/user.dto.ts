@@ -1,5 +1,4 @@
-import type { User } from '../entities/user.entity';
-import type { PaginatedResponse } from './common.dto';
+import type { PaginatedResponse, ISODateString } from './common.dto';
 
 /**
  * Update user DTO
@@ -10,11 +9,17 @@ export interface UpdateUserDto {
 }
 
 /**
- * User response (alias for User entity)
+ * User response with ISO date strings for JSON serialization
  */
-export type UserResponse = User;
+export interface UserResponse {
+  id: string;
+  email: string;
+  name: string | null;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
+}
 
 /**
  * Paginated users list response
  */
-export type UsersListResponse = PaginatedResponse<User>;
+export type UsersListResponse = PaginatedResponse<UserResponse>;

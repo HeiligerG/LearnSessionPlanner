@@ -34,7 +34,6 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": "./",
     "paths": {
-      "@repo/shared-types": ["../../packages/shared-types/src"],
       "@modules/*": ["src/modules/*"],
       "@common/*": ["src/common/*"],
       "@config/*": ["src/config/*"],
