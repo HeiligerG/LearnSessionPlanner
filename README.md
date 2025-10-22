@@ -152,14 +152,110 @@ pnpm workspaces provide powerful filtering capabilities for running commands in 
   pnpm -r test
   ```
 
-## Docker Setup (coming in later phase)
+## Docker Setup
 
-Docker Compose will orchestrate the following services:
-- PostgreSQL database
-- NestJS API server
-- React web application
+The project is fully containerized using Docker and Docker Compose with multi-stage builds for optimal image sizes.
 
-Configuration and setup instructions will be added once the applications are scaffolded.
+### Quick Start with Docker
+
+#### Development Mode
+
+Start all services with hot-reload:
+
+```bash
+# Copy environment file
+cp .env.docker.example .env.docker
+
+# Start all services (postgres, api, web)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# Or use the npm script
+pnpm docker:dev
+```
+
+**Services:**
+- Web: http://localhost:5173 (Vite dev server with hot-reload)
+- API: http://localhost:4000 (NestJS with hot-reload)
+- PostgreSQL: localhost:5432
+
+**Development features:**
+- Source code mounted as volumes for hot-reload
+- Database changes persist in named volume
+- Debug port 9229 exposed for NestJS debugging
+
+#### Production Mode
+
+Build and run optimized production images:
+
+```bash
+# Set up Docker secrets (production only)
+echo "your-jwt-secret" | docker secret create jwt_secret -
+echo "your-refresh-secret" | docker secret create jwt_refresh_secret -
+echo "postgres" | docker secret create postgres_user -
+echo "secure-password" | docker secret create postgres_password -
+
+# Start with production configuration
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Or use the npm script
+pnpm docker:prod
+```
+
+**Production features:**
+- Multi-stage builds with minimal final images
+- Health checks for all services
+- Resource limits and restart policies
+- Docker secrets for sensitive data
+- nginx reverse proxy (optional)
+
+### Docker Commands
+
+```bash
+# Build all images
+pnpm docker:build
+
+# Start development environment
+pnpm docker:dev
+
+# Start production environment
+pnpm docker:prod
+
+# Stop all services
+pnpm docker:down
+
+# View logs
+docker-compose logs -f
+
+# View logs for specific service
+docker-compose logs -f api
+```
+
+### Image Sizes
+
+- **web:** ~50MB (nginx + static files)
+- **api:** ~200MB (Node.js + Prisma + built application)
+- **postgres:** ~240MB (official PostgreSQL 16 Alpine)
+
+### Environment Variables
+
+See [.env.docker.example](.env.docker.example) for all available configuration options.
+
+**Required variables:**
+- `DATABASE_URL` - PostgreSQL connection string
+- `JWT_SECRET` - JWT signing secret
+- `JWT_REFRESH_SECRET` - Refresh token signing secret
+- `VITE_API_URL` - API URL for web app (build-time)
+
+### Docker Best Practices
+
+This setup follows 2025 Docker best practices:
+- Multi-stage builds for minimal image sizes
+- Non-root users for security
+- Health checks for container orchestration
+- BuildKit cache mounts for faster builds
+- Separate dev/prod configurations
+- Docker secrets for production credentials
+- Resource limits in production
 
 ## Shared Packages
 

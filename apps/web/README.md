@@ -143,6 +143,95 @@ Access in code via `import.meta.env.VITE_API_URL`.
 | `pnpm typecheck` | Run TypeScript type checking               |
 | `pnpm lint`  | Run ESLint (to be configured)                  |
 
+## Docker
+
+The web application is containerized with a multi-stage Dockerfile using nginx for production.
+
+### Docker Development
+
+Run the web app with hot-reload in Docker:
+
+```bash
+# From monorepo root
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up web
+
+# Or start all services
+pnpm docker:dev
+```
+
+**Development features:**
+- Vite dev server with HMR running on port 5173
+- Source code mounted for hot-reload
+- Shared-types changes reflected automatically
+- Connected to dockerized API
+
+### Docker Production
+
+Build and run production image with nginx:
+
+```bash
+# Build production image (from monorepo root)
+docker build -f apps/web/Dockerfile -t lsp-web:latest .
+
+# Run production container
+docker run -d -p 3000:80 lsp-web:latest
+
+# Or use docker-compose
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+### Dockerfile Stages
+
+1. **dependencies** - Install pnpm and project dependencies
+2. **builder** - Build shared-types and Vite production bundle
+3. **production** - Serve with nginx (~50MB final image)
+
+### Build Arguments
+
+The `VITE_API_URL` must be provided at build time:
+
+```bash
+docker build \
+  --build-arg VITE_API_URL=https://api.example.com/api \
+  -f apps/web/Dockerfile \
+  -t lsp-web:latest .
+```
+
+In docker-compose, set via environment:
+
+```yaml
+build:
+  args:
+    VITE_API_URL: ${VITE_API_URL}
+```
+
+### nginx Configuration
+
+Custom nginx configuration ([nginx.conf](nginx.conf)):
+- SPA routing with fallback to index.html
+- Aggressive caching for assets (1 year)
+- No caching for index.html
+- Gzip compression
+- Security headers (X-Frame-Options, CSP, etc.)
+
+### Health Check
+
+The Dockerfile includes a health check:
+
+```bash
+# Check container health
+docker ps
+# Look for "healthy" status
+```
+
+### Image Size Optimization
+
+Production image is ~50MB with:
+- Multi-stage build (build artifacts not included)
+- nginx:alpine base image
+- Static files only in final stage
+- Non-root user for security
+
 ## Future Enhancements
 
 - **State Management:** Zustand, Redux Toolkit, or TanStack Query

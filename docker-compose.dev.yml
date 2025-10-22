@@ -1,0 +1,61 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dependencies
+    container_name: lsp-api-dev
+    command: sh -c "cd apps/api && pnpm prisma:migrate:dev && pnpm start:dev"
+    volumes:
+      # Mount source code for hot-reload
+      - ./apps/api/src:/app/apps/api/src
+      - ./apps/api/prisma:/app/apps/api/prisma
+      - ./packages/shared-types/src:/app/packages/shared-types/src
+      - ./packages/shared-types/dist:/app/packages/shared-types/dist
+      # Exclude node_modules (use container's)
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/packages/shared-types/node_modules
+    environment:
+      NODE_ENV: development
+      # Override for development hot-reload
+      CORS_ORIGIN: http://localhost:5173
+    ports:
+      - "4000:4000"
+      # NestJS debug port
+      - "9229:9229"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dependencies
+    container_name: lsp-web-dev
+    command: sh -c "cd apps/web && pnpm dev --host 0.0.0.0"
+    volumes:
+      # Mount source code for hot-reload
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
+      - ./apps/web/index.html:/app/apps/web/index.html
+      - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts
+      - ./apps/web/tsconfig.json:/app/apps/web/tsconfig.json
+      - ./packages/shared-types/src:/app/packages/shared-types/src
+      - ./packages/shared-types/dist:/app/packages/shared-types/dist
+      # Exclude node_modules (use container's)
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared-types/node_modules
+    environment:
+      VITE_API_URL: http://localhost:4000/api
+    ports:
+      - "5173:5173"
+
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: learnsession

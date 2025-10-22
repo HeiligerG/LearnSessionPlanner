@@ -177,7 +177,89 @@ Access at `http://localhost:5555`
 
 ## Docker
 
-Dockerfile and docker-compose setup coming in the next phase.
+The API is containerized with a multi-stage Dockerfile optimized for production.
+
+### Docker Development
+
+Run the API with hot-reload in Docker:
+
+```bash
+# From monorepo root
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up api
+
+# Or start all services
+pnpm docker:dev
+```
+
+**Development features:**
+- Source code mounted for hot-reload
+- Prisma migrations run automatically
+- Debug port 9229 exposed
+- Connected to dockerized PostgreSQL
+
+### Docker Production
+
+Build and run production image:
+
+```bash
+# Build production image
+docker build -f Dockerfile -t lsp-api:latest .
+
+# Run production container
+docker run -d \
+  -p 4000:4000 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
+  -e JWT_SECRET="your-secret" \
+  lsp-api:latest
+
+# Or use docker-compose
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+### Dockerfile Stages
+
+1. **dependencies** - Install pnpm and project dependencies
+2. **builder** - Build shared-types, generate Prisma Client, build NestJS
+3. **production** - Minimal runtime image with built application (~200MB)
+
+### Docker Environment Variables
+
+See root [.env.docker.example](../../.env.docker.example) for all configuration options.
+
+**Required:**
+- `DATABASE_URL` - PostgreSQL connection string
+- `JWT_SECRET` - JWT signing secret
+- `JWT_REFRESH_SECRET` - Refresh token secret
+
+### Health Check
+
+The Dockerfile includes a health check that verifies:
+- HTTP server is responding on port 4000
+- `/api/health` endpoint returns 200 OK
+
+```bash
+# Check container health
+docker ps
+# Look for "healthy" status
+```
+
+### Database Migrations in Docker
+
+**Development:**
+Migrations run automatically via `pnpm prisma:migrate:dev` on startup.
+
+**Production:**
+Migrations run via `pnpm prisma:migrate:deploy` before starting the application.
+
+### Prisma in Docker
+
+Prisma requires OpenSSL, which is installed in the Dockerfile:
+
+```dockerfile
+RUN apk add --no-cache openssl
+```
+
+The Prisma Client is generated during the build stage and in production.
 
 ## Future Enhancements
 

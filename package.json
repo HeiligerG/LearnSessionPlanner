@@ -26,7 +26,14 @@
     "lint:fix": "pnpm -r lint:fix",
     "prisma:generate": "pnpm --filter @repo/api prisma:generate",
     "prisma:migrate": "pnpm --filter @repo/api prisma:migrate:dev",
-    "prisma:studio": "pnpm --filter @repo/api prisma:studio"
+    "prisma:studio": "pnpm --filter @repo/api prisma:studio",
+    "docker:build": "docker-compose build",
+    "docker:dev": "docker-compose -f docker-compose.yml -f docker-compose.dev.yml up",
+    "docker:dev:detach": "docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d",
+    "docker:prod": "docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:clean": "docker-compose down -v --rmi all"
   },
   "keywords": [
     "monorepo",
