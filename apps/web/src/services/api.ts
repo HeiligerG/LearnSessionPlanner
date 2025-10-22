@@ -62,21 +62,13 @@ async function request<T>(
       )
     }
 
-    // Handle 204 No Content
+    // Handle 204 No Content - normalize to ApiResponse envelope
     if (response.status === 204) {
-      return undefined as T
+      return { success: true } as T
     }
 
     // Try to parse JSON response
-    try {
-      return await response.json()
-    } catch (error) {
-      // If JSON parsing fails (SyntaxError for empty/non-JSON body), return undefined
-      if (error instanceof SyntaxError) {
-        return undefined as T
-      }
-      throw error
-    }
+    return await response.json()
   } catch (error) {
     if (error instanceof ApiError) {
       throw error

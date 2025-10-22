@@ -6,15 +6,8 @@
  */
 
 // Re-export shared types for convenience (type-only to avoid bundling values)
+// NOTE: Only export DTO response types, NOT entity types with Date fields
 export type {
-  // Entities
-  User,
-  Session,
-  SessionWithUser,
-  Progress,
-  ProgressWithSession,
-  CreateUserData,
-  UpdateUserData,
   // Enums
   SessionCategory,
   // DTOs - Common
