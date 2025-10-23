@@ -4,7 +4,7 @@ A monorepo-based learning session planner for tracking daily, weekly, and custom
 
 ## Tech Stack
 
-- **Frontend:** React (Vite + TypeScript)
+- **Frontend:** React (Vite + TypeScript + Tailwind CSS)
 - **Backend:** NestJS (TypeScript)
 - **Database:** PostgreSQL with Prisma ORM
 - **Package Manager:** pnpm (workspaces)
@@ -16,7 +16,7 @@ A monorepo-based learning session planner for tracking daily, weekly, and custom
 ```
 learn-session-planner/
 ├── apps/
-│   ├── web/          # React frontend (Vite + TypeScript + React Router)
+│   ├── web/          # React frontend (Vite + TypeScript + Tailwind CSS + React Router)
 │   └── api/          # NestJS backend (TypeScript + Prisma + PostgreSQL)
 │       ├── src/
 │       │   ├── common/      # Shared utilities (Prisma service, etc.)

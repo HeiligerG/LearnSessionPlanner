@@ -5,10 +5,12 @@ Modern React frontend application for the Learn Session Planner, built with Vite
 ## Tech Stack
 
 - **React 18** with TypeScript
-- **Vite** - Lightning-fast build tool with HMR
+- **Vite 6** - Lightning-fast build tool with HMR
+- **Tailwind CSS 3** - Utility-first CSS framework
 - **React Router v6** - Client-side routing with data APIs
 - **SWC** - Fast TypeScript/JSX transpilation
 - **Vite TSConfig Paths** - Automatic path alias resolution
+- **PostCSS** with Autoprefixer - CSS processing and vendor prefixes
 
 ## Project Structure
 
@@ -23,8 +25,110 @@ src/
 ├── types/            # TypeScript type definitions
 ├── router.tsx        # React Router configuration
 ├── main.tsx          # Application entry point
-└── index.css         # Global styles and CSS variables
+└── index.css         # Tailwind directives and custom styles
 ```
+
+## Styling with Tailwind CSS
+
+This project uses Tailwind CSS for styling with a utility-first approach.
+
+### Configuration
+
+- `tailwind.config.js` - Tailwind configuration with custom theme values
+- `postcss.config.js` - PostCSS configuration for Tailwind processing
+- `src/index.css` - Tailwind directives and custom styles
+
+### Custom Theme
+
+The Tailwind theme is customized to match the original design system:
+
+**Colors:**
+- Primary: `bg-blue-600`, `text-blue-600`, `border-blue-600`
+- Secondary: `bg-gray-600`, `text-gray-600`
+- Success: `bg-green-600`, `text-green-600`
+- Error: `bg-red-600`, `text-red-600`
+- Warning: `bg-yellow-500`, `text-yellow-500`
+- Info: `bg-cyan-600`, `text-cyan-600`
+- Neutral: `bg-gray-50`, `bg-gray-100`, `text-gray-600`, `text-gray-900`
+
+**Typography:**
+- Font sizes: `text-xs` to `text-5xl`
+- Font weights: `font-normal`, `font-medium`, `font-semibold`, `font-bold`
+
+**Spacing:**
+- Use Tailwind's spacing scale: `p-4`, `m-8`, `gap-6`, etc.
+- 1 unit = 0.25rem (4px)
+
+**Border radius:**
+- `rounded-sm` (4px), `rounded` (8px), `rounded-lg` (12px), `rounded-full` (9999px)
+
+### Usage Examples
+
+**Button:**
+```tsx
+<button className="rounded bg-primary px-4 py-2 text-white hover:bg-primary-dark transition-colors">
+  Click me
+</button>
+```
+
+**Card:**
+```tsx
+<div className="rounded-lg bg-white p-6 shadow-md">
+  <h3 className="text-xl font-bold text-gray-900">Card Title</h3>
+  <p className="text-gray-600">Card content</p>
+</div>
+```
+
+**Responsive Grid:**
+```tsx
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+  {/* Grid items */}
+</div>
+```
+
+### Best Practices
+
+1. **Use utility classes directly in JSX** - Avoid creating custom CSS classes unless absolutely necessary
+2. **Extract repeated patterns into components** - Not into CSS classes
+3. **Use responsive prefixes** - `sm:`, `md:`, `lg:`, `xl:`, `2xl:` for mobile-first design
+4. **Use state variants** - `hover:`, `focus:`, `active:`, `disabled:`, `group-hover:` for interactivity
+5. **Use `@apply` sparingly** - Only for very complex repeated patterns in `@layer components`
+6. **Leverage Tailwind's IntelliSense** - Install the official VS Code extension for autocomplete
+
+### Adding Custom Styles
+
+If you need custom styles not provided by Tailwind:
+
+**1. Extend the theme in `tailwind.config.js`:**
+```javascript
+theme: {
+  extend: {
+    colors: {
+      brand: '#your-color',
+    },
+  },
+}
+```
+
+**2. Add custom utilities in `src/index.css`:**
+```css
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+```
+
+### Resources
+
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [Tailwind CSS Cheat Sheet](https://nerdcave.com/tailwind-cheat-sheet)
+- [Tailwind UI Components](https://tailwindui.com/) (paid)
+- [Headless UI](https://headlessui.com/) (free, unstyled components)
 
 ## Getting Started
 
@@ -69,6 +173,8 @@ pnpm dev
 
 The app will open automatically at [http://localhost:5173](http://localhost:5173)
 
+**Note:** Tailwind CSS is automatically processed via PostCSS during development. Changes to Tailwind classes trigger hot-reload.
+
 ### Building for Production
 
 Type-check and build the application:
@@ -82,6 +188,8 @@ pnpm build
 ```
 
 Build output will be in the `dist/` directory.
+
+**Note:** Production builds automatically purge unused Tailwind classes, resulting in a minimal CSS bundle.
 
 ### Preview Production Build
 
