@@ -95,6 +95,58 @@ The Tailwind theme is customized to match the original design system:
 5. **Use `@apply` sparingly** - Only for very complex repeated patterns in `@layer components`
 6. **Leverage Tailwind's IntelliSense** - Install the official VS Code extension for autocomplete
 
+### Tailwind Preflight and Typography
+
+Tailwind includes [Preflight](https://tailwindcss.com/docs/preflight), a modern CSS reset that removes default browser styling. This means:
+
+**Elements that need explicit styling:**
+- **Headings (`<h1>` - `<h6>`)**: Add size and weight classes (`text-2xl font-bold`)
+- **Lists (`<ul>`, `<ol>`)**: Add `list-disc` or `list-decimal` and `pl-5` for bullets/numbers
+- **Paragraphs (`<p>`)**: Add spacing with `mb-4` or `space-y-4` on parent
+- **Links (`<a>`)**: Add `text-blue-600 hover:underline` for visual distinction
+
+**Examples:**
+```tsx
+{/* Headings */}
+<h1 className="text-2xl font-bold mb-4">Title</h1>
+<h2 className="text-xl font-semibold mb-3">Subtitle</h2>
+
+{/* Lists */}
+<ul className="list-disc pl-5 space-y-1">
+  <li>Item 1</li>
+  <li>Item 2</li>
+</ul>
+
+{/* Paragraphs */}
+<div className="space-y-4">
+  <p>First paragraph</p>
+  <p>Second paragraph</p>
+</div>
+```
+
+**For rich text content** (blog posts, markdown, etc.):
+```bash
+# Install the typography plugin
+pnpm add -D @tailwindcss/typography
+```
+
+Then add to `tailwind.config.js`:
+```javascript
+plugins: [require('@tailwindcss/typography')],
+```
+
+Use the `prose` classes:
+```tsx
+<article className="prose lg:prose-xl">
+  {/* All HTML elements will be styled automatically */}
+  <h1>Article Title</h1>
+  <p>Paragraph with proper spacing...</p>
+  <ul>
+    <li>Automatically styled list</li>
+  </ul>
+</article>
+```
+
 ### Adding Custom Styles
 
 If you need custom styles not provided by Tailwind:
@@ -123,9 +175,40 @@ theme: {
 }
 ```
 
+### Recommended VS Code Setup
+
+For the best developer experience with Tailwind CSS:
+
+**1. Install Extensions:**
+- [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss) - Autocomplete, syntax highlighting, and linting
+
+**2. Optional: Create `.vscode/settings.json` in `apps/web/`:**
+```json
+{
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cn\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "css.validate": false,
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  }
+}
+```
+
+**Note:** The `.vscode/` directory is gitignored, so these settings won't be committed. Each developer can set up their own preferences.
+
 ### Resources
 
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)
 - [Tailwind CSS Cheat Sheet](https://nerdcave.com/tailwind-cheat-sheet)
 - [Tailwind UI Components](https://tailwindui.com/) (paid)
 - [Headless UI](https://headlessui.com/) (free, unstyled components)

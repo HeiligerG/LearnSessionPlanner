@@ -13,7 +13,6 @@ export default {
         },
         secondary: '#6c757d',
         success: '#28a745',
-        error: '#dc3545',
         danger: '#dc3545',
         warning: '#ffc107',
         info: '#17a2b8',
@@ -49,7 +48,6 @@ export default {
       borderRadius: {
         sm: '4px',
         DEFAULT: '8px',
-        md: '8px',
         lg: '12px',
         full: '9999px',
       },
@@ -63,7 +61,6 @@ export default {
       transitionDuration: {
         fast: '150ms',
         DEFAULT: '200ms',
-        base: '200ms',
         slow: '300ms',
       },
     },
