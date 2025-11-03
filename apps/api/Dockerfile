@@ -31,7 +31,7 @@ COPY --from=dependencies /app/packages/shared-types/node_modules ./packages/shar
 # Copy source code
 COPY apps/api ./apps/api
 COPY packages/shared-types ./packages/shared-types
-COPY pnpm-workspace.yaml package.json ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 
 # Install pnpm and build
 RUN npm install -g pnpm@9.15.4

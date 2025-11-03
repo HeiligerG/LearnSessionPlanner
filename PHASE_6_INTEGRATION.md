@@ -210,12 +210,26 @@ curl http://localhost:4000/api/nonexistent
 
 ## Test 6.8: Test Database Query from API
 
+**For Docker:**
+
+**Prerequisites:**
+- Ensure port 5555 is exposed (already configured in `docker-compose.dev.yml`)
+
 **Command:**
 ```bash
-docker-compose exec api pnpm prisma:studio
+# Start with development compose file (includes port 5555:5555)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Run Prisma Studio with Docker-compatible settings
+docker-compose exec api pnpm prisma:studio:docker
 ```
 
-**Or for local:**
+**Alternative (manual flags):**
+```bash
+docker-compose exec api pnpm prisma studio -- --port 5555 --hostname 0.0.0.0
+```
+
+**For Local:**
 ```bash
 pnpm --filter @repo/api prisma:studio
 ```
@@ -230,10 +244,14 @@ pnpm --filter @repo/api prisma:studio
 **Expected Result:**
 - Table exists (may be empty)
 - Schema is correct
+- Prisma Studio GUI loads in browser
 
 **Success Criteria:**
 - API can query database
 - Prisma Client works correctly
+- Studio is accessible from host browser
+
+**Note:** The `prisma:studio:docker` script binds to `0.0.0.0:5555` for container access. Port mapping `5555:5555` is configured in `docker-compose.dev.yml`.
 
 ---
 
