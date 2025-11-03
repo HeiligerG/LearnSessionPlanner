@@ -185,9 +185,29 @@ The test plan is considered successful when:
 
 For rapid validation, use the automated quick test script:
 
+**On Linux/Mac/Git Bash:**
 ```bash
 chmod +x QUICK_TEST.sh
 ./QUICK_TEST.sh
+```
+
+**On Windows PowerShell:**
+```powershell
+.\QUICK_TEST.ps1
+```
+
+**Flags:**
+- `--skip-docker` (Bash) or `-SkipDocker` (PowerShell): Skip Docker tests
+- `--verbose` (Bash) or `-Verbose` (PowerShell): Show detailed output
+- `--clean` (Bash) or `-Clean` (PowerShell): Clean before testing
+
+**Example with flags:**
+```bash
+# Bash
+./QUICK_TEST.sh --skip-docker --verbose
+
+# PowerShell
+.\QUICK_TEST.ps1 -SkipDocker -Verbose
 ```
 
 This runs critical tests from all phases in one command (estimated time: 15-20 minutes).

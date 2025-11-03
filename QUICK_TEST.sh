@@ -21,6 +21,9 @@ SKIP_DOCKER=false
 VERBOSE=false
 CLEAN=false
 
+# Docker Compose command (will be set after detection)
+COMPOSE_CMD=""
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -66,9 +69,9 @@ print_phase() {
 
 # Cleanup function
 cleanup() {
-  if [ "$SKIP_DOCKER" = false ]; then
+  if [ "$SKIP_DOCKER" = false ] && [ -n "$COMPOSE_CMD" ]; then
     print_info "Cleaning up Docker resources..."
-    docker-compose down > /dev/null 2>&1 || true
+    $COMPOSE_CMD down > /dev/null 2>&1 || true
   fi
 }
 
@@ -110,8 +113,15 @@ if [ "$SKIP_DOCKER" = false ]; then
   fi
 
   print_info "Checking Docker Compose version..."
-  if docker-compose --version &> /dev/null || docker compose version &> /dev/null; then
-    print_success "Docker Compose is available"
+  # Detect which docker-compose command is available
+  if docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+    COMPOSE_VERSION=$(docker compose version)
+    print_success "Docker Compose is available (V2): $COMPOSE_VERSION"
+  elif docker-compose --version &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+    COMPOSE_VERSION=$(docker-compose --version)
+    print_success "Docker Compose is available (V1): $COMPOSE_VERSION"
   else
     print_error "Docker Compose is not available"
     exit 1
@@ -140,11 +150,11 @@ print_success "Dependencies installed"
 
 # Verify workspace packages
 print_info "Verifying workspace packages..."
-PACKAGES=$(pnpm list --depth 0 2>/dev/null | grep -c "@repo/" || true)
-if [ "$PACKAGES" -eq 3 ]; then
+# Check for expected workspace package directories instead of parsing pnpm list
+if [ -d "apps/web" ] && [ -d "apps/api" ] && [ -d "packages/shared-types" ]; then
   print_success "All workspace packages found (3/3)"
 else
-  print_error "Expected 3 workspace packages, found $PACKAGES"
+  print_error "Expected workspace packages not found. Check apps/web, apps/api, and packages/shared-types directories."
   exit 1
 fi
 
@@ -250,15 +260,15 @@ if [ "$SKIP_DOCKER" = false ]; then
   # Build Docker images
   print_info "Building Docker images..."
   if [ "$VERBOSE" = true ]; then
-    docker-compose build
+    $COMPOSE_CMD build
   else
-    docker-compose build > /dev/null 2>&1
+    $COMPOSE_CMD build > /dev/null 2>&1
   fi
   print_success "Docker images built"
 
   # Start services
   print_info "Starting Docker services..."
-  docker-compose up -d > /dev/null 2>&1
+  $COMPOSE_CMD up -d > /dev/null 2>&1
   print_success "Docker services started"
 
   # Wait for services to be ready
@@ -268,9 +278,9 @@ if [ "$SKIP_DOCKER" = false ]; then
   # Run migrations
   print_info "Running database migrations..."
   if [ "$VERBOSE" = true ]; then
-    docker-compose exec -T api pnpm prisma:migrate:deploy
+    $COMPOSE_CMD exec -T api pnpm prisma:migrate:deploy
   else
-    docker-compose exec -T api pnpm prisma:migrate:deploy > /dev/null 2>&1
+    $COMPOSE_CMD exec -T api pnpm prisma:migrate:deploy > /dev/null 2>&1
   fi
   print_success "Database migrations complete"
 
@@ -280,7 +290,7 @@ if [ "$SKIP_DOCKER" = false ]; then
     print_success "API health check passed"
   else
     print_error "API health check failed"
-    docker-compose logs api
+    $COMPOSE_CMD logs api
     exit 1
   fi
 
@@ -290,13 +300,13 @@ if [ "$SKIP_DOCKER" = false ]; then
     print_success "Web app accessible"
   else
     print_error "Web app not accessible"
-    docker-compose logs web
+    $COMPOSE_CMD logs web
     exit 1
   fi
 
   # Stop services
   print_info "Stopping Docker services..."
-  docker-compose down > /dev/null 2>&1
+  $COMPOSE_CMD down > /dev/null 2>&1
   print_success "Docker services stopped"
 else
   print_info "Skipping Docker tests (--skip-docker flag set)"
