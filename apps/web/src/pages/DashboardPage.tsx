@@ -1,19 +1,244 @@
+import { useState, useEffect } from 'react';
+import { useSessions } from '@/hooks/useSessions';
+import { StatsCard } from '@/components/dashboard/StatsCard';
+import { SessionCard } from '@/components/sessions/SessionCard';
+import { SessionForm } from '@/components/sessions/SessionForm';
+import { CalendarView } from '@/components/calendar/CalendarView';
+import type { SessionResponse, SessionStatsDto } from '@repo/shared-types';
+import { api } from '@/services/api';
+
 export default function DashboardPage() {
+  const {
+    sessions,
+    loading,
+    error,
+    createSession,
+    updateSession,
+    deleteSession,
+    refetch,
+  } = useSessions();
+
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const [showSessionForm, setShowSessionForm] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
+  const [stats, setStats] = useState<SessionStatsDto | null>(null);
+
+  useEffect(() => {
+    // Fetch statistics
+    api.sessions.getStats().then((response) => {
+      if (response.data) {
+        setStats(response.data);
+      }
+    }).catch(console.error);
+  }, [sessions]);
+
+  const handleCreateSession = async (data: any) => {
+    try {
+      await createSession(data);
+      setShowSessionForm(false);
+      setSelectedSession(null);
+    } catch (error) {
+      console.error('Failed to create session:', error);
+    }
+  };
+
+  const handleUpdateSession = async (data: any) => {
+    if (!selectedSession) return;
+    try {
+      await updateSession(selectedSession.id, data);
+      setShowSessionForm(false);
+      setSelectedSession(null);
+    } catch (error) {
+      console.error('Failed to update session:', error);
+    }
+  };
+
+  const handleEditSession = (session: SessionResponse) => {
+    setSelectedSession(session);
+    setShowSessionForm(true);
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    try {
+      await deleteSession(id);
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+    }
+  };
+
+  const handleSessionClick = (session: SessionResponse) => {
+    handleEditSession(session);
+  };
+
   return (
-    <div className="p-8">
-      <h1 className="mb-4 text-2xl font-bold text-gray-900">Dashboard</h1>
-      <p className="text-gray-600">
-        Welcome to your learning dashboard. This page is under construction.
-      </p>
-      <div className="mt-8 rounded-lg bg-gray-50 p-6">
-        <h3 className="mb-2 text-gray-900">Coming Soon</h3>
-        <ul className="list-disc pl-5 space-y-1 leading-relaxed text-gray-600">
-          <li>Daily learning session planner</li>
-          <li>Weekly progress overview</li>
-          <li>Subject tracking and analytics</li>
-          <li>Custom session templates</li>
-        </ul>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Learning Dashboard
+          </h1>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">
+            Plan and track your learning sessions
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setSelectedSession(null);
+            setShowSessionForm(true);
+          }}
+          className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm"
+        >
+          + New Session
+        </button>
       </div>
+
+      {/* Statistics Cards */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatsCard
+            title="Total Sessions"
+            value={stats.total}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            }
+            color="primary"
+          />
+          <StatsCard
+            title="Completed"
+            value={stats.completed}
+            subtitle={`${stats.completionRate.toFixed(1)}% completion rate`}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+            color="success"
+          />
+          <StatsCard
+            title="In Progress"
+            value={stats.inProgress}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            }
+            color="info"
+          />
+          <StatsCard
+            title="Total Hours"
+            value={`${(stats.completedDuration / 60).toFixed(1)}h`}
+            subtitle={`of ${(stats.totalDuration / 60).toFixed(1)}h planned`}
+            icon={
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+            color="warning"
+          />
+        </div>
+      )}
+
+      {/* View Toggle */}
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setView('calendar')}
+          className={`px-4 py-2 border-b-2 transition-colors ${
+            view === 'calendar'
+              ? 'border-primary-600 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          Calendar View
+        </button>
+        <button
+          onClick={() => setView('list')}
+          className={`px-4 py-2 border-b-2 transition-colors ${
+            view === 'list'
+              ? 'border-primary-600 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          List View
+        </button>
+      </div>
+
+      {/* Main Content */}
+      {loading && !sessions.length ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading sessions...</p>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <p className="text-red-800 dark:text-red-200">Error loading sessions: {error.message}</p>
+          <button
+            onClick={refetch}
+            className="mt-2 text-red-600 dark:text-red-400 hover:underline"
+          >
+            Try again
+          </button>
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
+          <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            No sessions yet
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Create your first learning session to get started
+          </p>
+          <button
+            onClick={() => setShowSessionForm(true)}
+            className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors"
+          >
+            Create First Session
+          </button>
+        </div>
+      ) : view === 'calendar' ? (
+        <CalendarView
+          sessions={sessions.filter(s => s != null)}
+          onSessionClick={handleSessionClick}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sessions.filter(s => s != null).map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              onEdit={handleEditSession}
+              onDelete={handleDeleteSession}
+              onClick={handleSessionClick}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Session Form Modal */}
+      {showSessionForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                {selectedSession ? 'Edit Session' : 'Create New Session'}
+              </h2>
+              <SessionForm
+                session={selectedSession || undefined}
+                onSubmit={selectedSession ? handleUpdateSession : handleCreateSession}
+                onCancel={() => {
+                  setShowSessionForm(false);
+                  setSelectedSession(null);
+                }}
+                loading={loading}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }

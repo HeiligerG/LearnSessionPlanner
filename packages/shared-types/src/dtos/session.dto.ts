@@ -1,4 +1,6 @@
 import type { SessionCategory } from '../enums/session-category.enum';
+import type { SessionStatus } from '../enums/session-status.enum';
+import type { SessionPriority } from '../enums/session-priority.enum';
 import type { PaginatedResponse, ISODateString } from './common.dto';
 
 /**
@@ -8,7 +10,12 @@ export interface CreateSessionDto {
   title: string;
   description?: string;
   category: SessionCategory;
+  status?: SessionStatus;
+  priority?: SessionPriority;
   duration: number;
+  color?: string;
+  tags?: string[];
+  notes?: string;
   scheduledFor?: string;
 }
 
@@ -19,8 +26,15 @@ export interface UpdateSessionDto {
   title?: string;
   description?: string;
   category?: SessionCategory;
+  status?: SessionStatus;
+  priority?: SessionPriority;
   duration?: number;
+  actualDuration?: number | null;
+  color?: string | null;
+  tags?: string[];
+  notes?: string | null;
   scheduledFor?: string | null;
+  startedAt?: string | null;
   completedAt?: string | null;
 }
 
@@ -32,8 +46,15 @@ export interface SessionResponse {
   title: string;
   description: string | null;
   category: SessionCategory;
+  status: SessionStatus;
+  priority: SessionPriority;
   duration: number;
+  actualDuration: number | null;
+  color: string | null;
+  tags: string[];
+  notes: string | null;
   scheduledFor: ISODateString | null;
+  startedAt: ISODateString | null;
   completedAt: ISODateString | null;
   userId: string;
   createdAt: ISODateString;
@@ -50,8 +71,37 @@ export type SessionsListResponse = PaginatedResponse<SessionResponse>;
  */
 export interface SessionFilters {
   category?: SessionCategory;
+  status?: SessionStatus | SessionStatus[];
+  priority?: SessionPriority | SessionPriority[];
+  tags?: string[];
+  search?: string;
   completed?: boolean;
   scheduledFrom?: string;
   scheduledTo?: string;
   userId?: string;
+}
+
+/**
+ * Calendar session query DTO
+ */
+export interface CalendarSessionDto {
+  startDate: string;
+  endDate: string;
+  view?: 'month' | 'week' | 'day';
+  categories?: SessionCategory[];
+  statuses?: SessionStatus[];
+}
+
+/**
+ * Session statistics DTO
+ */
+export interface SessionStatsDto {
+  total: number;
+  completed: number;
+  inProgress: number;
+  missed: number;
+  planned: number;
+  totalDuration: number;
+  completedDuration: number;
+  completionRate: number;
 }

@@ -9,13 +9,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SessionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  MISSED
+  CANCELLED
+}
+
+enum SessionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SessionCategory {
+  SCHOOL
+  PROGRAMMING
+  LANGUAGE
+  PERSONAL
+  OTHER
+}
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
+  id        String    @id @default(uuid())
+  email     String    @unique
   name      String?
   password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  sessions  Session[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@map("users")
+}
+
+model Session {
+  id             String          @id @default(uuid())
+  title          String
+  description    String?
+  category       SessionCategory
+  status         SessionStatus   @default(PLANNED)
+  priority       SessionPriority @default(MEDIUM)
+  duration       Int
+  actualDuration Int?
+  color          String?
+  tags           String[]        @default([])
+  notes          String?
+  scheduledFor   DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress       Progress[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([status])
+  @@index([category])
+  @@map("sessions")
+}
+
+model Progress {
+  id                   String   @id @default(uuid())
+  sessionId            String
+  session              Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  notes                String?
+  rating               Int?
+  completionPercentage Int      @default(0)
+  recordedAt           DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([sessionId])
+  @@map("progress")
 }

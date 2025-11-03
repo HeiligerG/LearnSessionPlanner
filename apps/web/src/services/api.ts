@@ -15,6 +15,8 @@ import type {
   SessionResponse,
   SessionsListResponse,
   SessionFilters,
+  SessionStatsDto,
+  CalendarSessionDto,
 } from '@repo/shared-types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -185,6 +187,37 @@ export const api = {
      */
     delete(id: string): Promise<ApiResponse<void>> {
       return apiClient.delete<ApiResponse<void>>(`/sessions/${id}`)
+    },
+
+    /**
+     * Get session statistics
+     */
+    getStats(startDate?: string, endDate?: string): Promise<ApiResponse<SessionStatsDto>> {
+      const params = new URLSearchParams()
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+
+      const query = params.toString() ? `?${params.toString()}` : ''
+      return apiClient.get<ApiResponse<SessionStatsDto>>(`/sessions/stats${query}`)
+    },
+
+    /**
+     * Get sessions for calendar view
+     */
+    getCalendar(dto: CalendarSessionDto): Promise<ApiResponse<SessionResponse[]>> {
+      const params = new URLSearchParams()
+      params.append('startDate', dto.startDate)
+      params.append('endDate', dto.endDate)
+      if (dto.view) params.append('view', dto.view)
+      if (dto.categories) {
+        dto.categories.forEach(cat => params.append('categories', cat))
+      }
+      if (dto.statuses) {
+        dto.statuses.forEach(status => params.append('statuses', status))
+      }
+
+      const query = params.toString()
+      return apiClient.get<ApiResponse<SessionResponse[]>>(`/sessions/calendar?${query}`)
     },
   },
 }

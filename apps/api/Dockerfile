@@ -80,6 +80,10 @@ RUN cp -R /prod/api/* /app/apps/api/ && rm -rf /prod
 # Set working directory to API package
 WORKDIR /app/apps/api
 
+# Generate Prisma Client in production node_modules
+# Must be done AFTER pnpm deploy to ensure it's not overwritten
+RUN pnpm prisma:generate
+
 # Set environment
 ENV NODE_ENV=production
 

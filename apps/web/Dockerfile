@@ -42,7 +42,8 @@ FROM nginx:alpine AS production
 # Install curl for healthcheck
 RUN apk add --no-cache curl
 
-# Copy custom nginx configuration
+# Copy custom nginx configurations
+COPY apps/web/nginx-main.conf /etc/nginx/nginx.conf
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built static files

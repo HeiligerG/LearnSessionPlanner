@@ -1,6 +1,8 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import LandingPage from '@pages/LandingPage'
 import DashboardPage from '@pages/DashboardPage'
+import CalendarPage from '@pages/CalendarPage'
+import SessionsPage from '@pages/SessionsPage'
 import RootLayout from '@components/layouts/RootLayout'
 
 const routes: RouteObject[] = [
@@ -15,6 +17,14 @@ const routes: RouteObject[] = [
       {
         path: 'dashboard',
         element: <DashboardPage />
+      },
+      {
+        path: 'calendar',
+        element: <CalendarPage />
+      },
+      {
+        path: 'sessions',
+        element: <SessionsPage />
       }
     ]
   }
