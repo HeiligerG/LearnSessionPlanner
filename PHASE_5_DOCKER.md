@@ -264,14 +264,23 @@ learn-session-planner-api-1  | [Nest] LOG [NestApplication] 🚀 API server is r
 
 ---
 
-## Test 5.10: Run Database Migrations in Container
+## Test 5.10: Initialize Database Schema in Container
 
-**Command:**
+**Option A: If migrations exist (after running migrate:dev locally):**
 ```bash
 docker-compose exec api pnpm prisma:migrate:deploy
 ```
 
-**Expected Output:**
+**Option B: If no migrations exist (first-time Docker-only setup):**
+```bash
+# Check if migrations exist
+docker-compose exec api test -d /app/apps/api/prisma/migrations && echo "Migrations found" || echo "No migrations"
+
+# If no migrations, use db push instead
+docker-compose exec api pnpm prisma db push
+```
+
+**Expected Output (migrate:deploy):**
 ```
 Prisma schema loaded from prisma/schema.prisma
 Datasource "db": PostgreSQL database "learnsession"
@@ -287,11 +296,19 @@ migrations/
     └─ migration.sql
 ```
 
-**Success Criteria:**
-- Migrations run successfully in container
-- Database schema is created
+**Expected Output (db push):**
+```
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "learnsession"
 
-**Note:** This is required on first run
+🚀  Your database is now in sync with your Prisma schema.
+```
+
+**Success Criteria:**
+- Database schema is created/updated in container
+- Either migrations applied or schema pushed successfully
+
+**Note:** Use `migrate:deploy` when you have migration files, `db push` for initial schema without migrations.
 
 ---
 
@@ -551,19 +568,45 @@ docker inspect learn-session-planner-api-1 | grep -A 10 Health
 
 ## Test 5.22: Test Prisma Studio in Container
 
+**Prerequisites:**
+- Ensure port 5555 is exposed in `docker-compose.dev.yml`:
+  ```yaml
+  api:
+    ports:
+      - "4000:4000"
+      - "5555:5555"  # Prisma Studio port
+  ```
+
 **Command:**
 ```bash
-docker-compose exec api pnpm prisma:studio
+# Start services in development mode (with port mapping)
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Run Prisma Studio with proper hostname binding
+docker-compose exec api pnpm prisma:studio:docker
+```
+
+**Alternative (manual flags):**
+```bash
+docker-compose exec api pnpm prisma studio -- --port 5555 --hostname 0.0.0.0
 ```
 
 **Expected Behavior:**
-- Opens Prisma Studio
+- Prisma Studio starts on port 5555
+- Bound to 0.0.0.0 (accessible from host)
 - URL: http://localhost:5555
 
 **Success Criteria:**
+- Can open http://localhost:5555 in browser
 - Can view database schema and data from container
+- GUI loads without errors
 
-**Note:** Press Ctrl+C to stop Prisma Studio
+**Troubleshooting:**
+- **Cannot connect**: Ensure port 5555 is mapped in docker-compose.dev.yml
+- **Connection refused**: Check that --hostname 0.0.0.0 flag is used
+- **Port in use**: Stop any local Prisma Studio instances
+
+**Note:** Press Ctrl+C to stop Prisma Studio. For production, do not expose port 5555.
 
 ---
 

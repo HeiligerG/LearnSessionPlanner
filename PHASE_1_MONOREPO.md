@@ -120,24 +120,19 @@ packages:
 
 **Command:**
 ```bash
-pnpm list --depth 0
+pnpm -r list --depth -1
 ```
 
 **Expected Output:**
 ```
-Legend: production dependency, optional only, dev only
-
-<root> /path/to/LearnSessionPlanner
-
-dependencies:
-@repo/api 1.0.0 <- apps/api
-@repo/shared-types 1.0.0 <- packages/shared-types
-@repo/web 1.0.0 <- apps/web
+@repo/api 0.1.0 /path/to/LearnSessionPlanner/apps/api
+@repo/shared-types 1.0.0 /path/to/LearnSessionPlanner/packages/shared-types
+@repo/web 0.1.0 /path/to/LearnSessionPlanner/apps/web
 ```
 
 **Success Criteria:**
 - Lists all three workspace packages: @repo/web, @repo/api, @repo/shared-types
-- Shows correct symlink paths
+- Shows correct workspace paths
 
 **Troubleshooting:**
 - If packages missing: Check pnpm-workspace.yaml patterns
@@ -149,13 +144,11 @@ dependencies:
 
 **Command:**
 ```bash
-pnpm list @repo/shared-types --depth 0
+pnpm -r list @repo/shared-types --depth 0
 ```
 
 **Expected Output:**
 ```
-<root> /path/to/LearnSessionPlanner
-
 @repo/api
 dependencies:
 @repo/shared-types 1.0.0 <- ../../packages/shared-types
@@ -204,30 +197,33 @@ link-workspace-packages=true
 
 ---
 
-## Test 1.8: Check for node_modules Hoisting
+## Test 1.8: Check for node_modules in Workspace Packages
 
 **Command:**
 ```bash
-ls -la node_modules/@repo
+ls -la apps/web/node_modules/@repo apps/api/node_modules/@repo
 ```
 
 **Windows Alternative:**
 ```cmd
-dir node_modules\@repo
+dir apps\web\node_modules\@repo apps\api\node_modules\@repo
 ```
 
 **Expected Output:**
 ```
-api -> ../apps/api
-shared-types -> ../packages/shared-types
-web -> ../apps/web
+apps/web/node_modules/@repo:
+shared-types -> ../../../packages/shared-types
+
+apps/api/node_modules/@repo:
+shared-types -> ../../../packages/shared-types
 ```
 
 **Success Criteria:**
-- Shows symlinks (or junctions on Windows) to workspace packages
-- Symlinks point to correct package directories
+- Shows symlinks (or junctions on Windows) in apps/web and apps/api
+- Symlinks point to packages/shared-types
+- Both consuming packages have the workspace dependency linked
 
-**Note:** On Windows, these may appear as `<JUNCTION>` or `<SYMLINKD>` in directory listings
+**Note:** On Windows, these may appear as `<JUNCTION>` or `<SYMLINKD>` in directory listings. The root node_modules/@repo may not exist or may be empty, which is expected with pnpm's strict dependency isolation.
 
 ---
 

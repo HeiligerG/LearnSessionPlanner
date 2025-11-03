@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   shared-types:
     build:
@@ -37,6 +35,8 @@ services:
       - "4000:4000"
       # NestJS debug port
       - "9229:9229"
+      # Prisma Studio port (for development/testing only)
+      - "5555:5555"
 
   web:
     build:

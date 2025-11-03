@@ -271,18 +271,44 @@ if [ "$SKIP_DOCKER" = false ]; then
   $COMPOSE_CMD up -d > /dev/null 2>&1
   print_success "Docker services started"
 
-  # Wait for services to be ready
-  print_info "Waiting for services to be ready (30s)..."
-  sleep 30
+  # Wait for services to be ready with health check polling
+  print_info "Waiting for API to be healthy..."
+  MAX_WAIT=90
+  ELAPSED=0
+  while [ $ELAPSED -lt $MAX_WAIT ]; do
+    if curl -sf http://localhost:4000/api/health > /dev/null 2>&1; then
+      print_success "API is healthy (${ELAPSED}s)"
+      break
+    fi
+    sleep 2
+    ELAPSED=$((ELAPSED + 2))
+    if [ $ELAPSED -ge $MAX_WAIT ]; then
+      print_error "API failed to become healthy after ${MAX_WAIT}s"
+      $COMPOSE_CMD logs api
+      exit 1
+    fi
+  done
 
-  # Run migrations
-  print_info "Running database migrations..."
-  if [ "$VERBOSE" = true ]; then
-    $COMPOSE_CMD exec -T api pnpm prisma:migrate:deploy
+  # Run migrations or initialize schema
+  print_info "Initializing database schema..."
+  if $COMPOSE_CMD exec -T api test -d /app/apps/api/prisma/migrations 2>/dev/null; then
+    # Migrations exist, use migrate:deploy
+    if [ "$VERBOSE" = true ]; then
+      $COMPOSE_CMD exec -T api pnpm prisma:migrate:deploy
+    else
+      $COMPOSE_CMD exec -T api pnpm prisma:migrate:deploy > /dev/null 2>&1
+    fi
+    print_success "Database migrations applied"
   else
-    $COMPOSE_CMD exec -T api pnpm prisma:migrate:deploy > /dev/null 2>&1
+    # No migrations, use db push
+    print_info "No migrations found, using db push to initialize schema..."
+    if [ "$VERBOSE" = true ]; then
+      $COMPOSE_CMD exec -T api pnpm prisma db push
+    else
+      $COMPOSE_CMD exec -T api pnpm prisma db push > /dev/null 2>&1
+    fi
+    print_success "Database schema initialized with db push"
   fi
-  print_success "Database migrations complete"
 
   # Test API health check
   print_info "Testing API health check..."

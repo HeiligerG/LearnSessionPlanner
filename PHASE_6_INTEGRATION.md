@@ -31,12 +31,18 @@ pnpm --filter @repo/web dev
 **Command:**
 ```bash
 docker-compose up -d
+
+# Initialize database schema (choose based on whether migrations exist)
+# If migrations exist:
 docker-compose exec api pnpm prisma:migrate:deploy
+
+# If no migrations (first-time setup):
+docker-compose exec api pnpm prisma db push
 ```
 
 **Success Criteria:**
 - All containers running
-- Migrations applied
+- Database schema initialized
 - No errors in logs
 
 ---
@@ -419,7 +425,12 @@ pnpm build
 ```bash
 docker-compose down
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Initialize database schema
+# If migrations exist:
 docker-compose exec api pnpm prisma:migrate:deploy
+# If no migrations:
+docker-compose exec api pnpm prisma db push
 ```
 
 **Action:** Open http://localhost:5173 in browser

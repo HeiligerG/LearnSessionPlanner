@@ -253,18 +253,53 @@ if (-not $SkipDocker) {
     & $ComposeCmd up -d 2>&1 | Out-Null
     Print-Success "Docker services started"
 
-    # Wait for services to be ready
-    Print-Info "Waiting for services to be ready (30s)..."
-    Start-Sleep -Seconds 30
-
-    # Run migrations
-    Print-Info "Running database migrations..."
-    if ($Verbose) {
-        & $ComposeCmd exec -T api pnpm prisma:migrate:deploy
-    } else {
-        & $ComposeCmd exec -T api pnpm prisma:migrate:deploy 2>&1 | Out-Null
+    # Wait for services to be ready with health check polling
+    Print-Info "Waiting for API to be healthy..."
+    $MaxWait = 90
+    $Elapsed = 0
+    $Healthy = $false
+    while ($Elapsed -lt $MaxWait) {
+        try {
+            $Response = Invoke-WebRequest -Uri "http://localhost:4000/api/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+            if ($Response.StatusCode -eq 200) {
+                Print-Success "API is healthy (${Elapsed}s)"
+                $Healthy = $true
+                break
+            }
+        } catch {
+            # Continue polling
+        }
+        Start-Sleep -Seconds 2
+        $Elapsed += 2
     }
-    Print-Success "Database migrations complete"
+
+    if (-not $Healthy) {
+        Print-Error "API failed to become healthy after ${MaxWait}s"
+        & $ComposeCmd logs api
+        exit 1
+    }
+
+    # Run migrations or initialize schema
+    Print-Info "Initializing database schema..."
+    $MigrationsExist = & $ComposeCmd exec -T api test -d /app/apps/api/prisma/migrations 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        # Migrations exist, use migrate:deploy
+        if ($Verbose) {
+            & $ComposeCmd exec -T api pnpm prisma:migrate:deploy
+        } else {
+            & $ComposeCmd exec -T api pnpm prisma:migrate:deploy 2>&1 | Out-Null
+        }
+        Print-Success "Database migrations applied"
+    } else {
+        # No migrations, use db push
+        Print-Info "No migrations found, using db push to initialize schema..."
+        if ($Verbose) {
+            & $ComposeCmd exec -T api pnpm prisma db push
+        } else {
+            & $ComposeCmd exec -T api pnpm prisma db push 2>&1 | Out-Null
+        }
+        Print-Success "Database schema initialized with db push"
+    }
 
     # Test API health check
     Print-Info "Testing API health check..."
