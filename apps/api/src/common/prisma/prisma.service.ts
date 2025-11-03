@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
-  constructor(private configService: ConfigService) {
+  constructor(configService: ConfigService) {
     const isDevelopment = configService.get('NODE_ENV') === 'development';
 
     super({
@@ -23,8 +23,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     console.log('✅ Database connected successfully');
   }
 
-  enableShutdownHooks(app: INestApplication): void {
-    this.$on('beforeExit', async () => {
+  async enableShutdownHooks(app: INestApplication): Promise<void> {
+    process.on('beforeExit', async () => {
+      await this.$disconnect();
       await app.close();
     });
   }
