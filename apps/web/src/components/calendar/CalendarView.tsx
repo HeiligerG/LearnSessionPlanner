@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { SessionResponse } from '@repo/shared-types';
 import { getMonthDays, formatDate } from '@/utils/dateUtils';
 import { groupSessionsByDate, getStatusBadgeClasses } from '@/utils/sessionUtils';
@@ -7,10 +7,18 @@ interface CalendarViewProps {
   sessions: SessionResponse[];
   onSessionClick?: (session: SessionResponse) => void;
   onDateClick?: (date: Date) => void;
+  selectedDate?: Date;
 }
 
-export function CalendarView({ sessions, onSessionClick, onDateClick }: CalendarViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+export function CalendarView({ sessions, onSessionClick, onDateClick, selectedDate }: CalendarViewProps) {
+  const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
+
+  // Sync currentDate with selectedDate prop changes
+  useEffect(() => {
+    if (selectedDate) {
+      setCurrentDate(selectedDate);
+    }
+  }, [selectedDate]);
 
   const days = useMemo(() => getMonthDays(currentDate), [currentDate]);
   const sessionsByDate = useMemo(() => groupSessionsByDate(sessions), [sessions]);

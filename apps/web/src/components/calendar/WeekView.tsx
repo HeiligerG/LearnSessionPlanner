@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { SessionResponse } from '@repo/shared-types';
 import { formatDate, formatTime, getWeekDays } from '@/utils/dateUtils';
-import { getStatusColor, getCategoryIcon, getSessionDuration } from '@/utils/sessionUtils';
+import { getStatusColor, getSessionDuration } from '@/utils/sessionUtils';
+import { getCategoryIconComponent } from '@/utils/iconUtils';
 
 interface WeekViewProps {
   sessions: SessionResponse[];
@@ -18,6 +19,16 @@ export function WeekView({
 }: WeekViewProps) {
   const [currentWeek, setCurrentWeek] = useState(selectedDate);
 
+  // Sync currentWeek with selectedDate prop changes
+  useEffect(() => {
+    setCurrentWeek(selectedDate);
+  }, [selectedDate]);
+
+  // Helper function to get local date key (YYYY-MM-DD in local timezone)
+  const getLocalDateKey = (date: Date): string => {
+    return date.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD in local time
+  };
+
   // Get the 7 days of the current week
   const weekDays = useMemo(() => getWeekDays(currentWeek), [currentWeek]);
 
@@ -30,19 +41,19 @@ export function WeekView({
     return slots;
   }, []);
 
-  // Group sessions by day
+  // Group sessions by day using local date keys
   const sessionsByDay = useMemo(() => {
     const grouped = new Map<string, SessionResponse[]>();
 
     weekDays.forEach(day => {
-      const dayKey = day.toISOString().split('T')[0];
+      const dayKey = getLocalDateKey(day);
       grouped.set(dayKey, []);
     });
 
     sessions.forEach(session => {
       if (session.scheduledFor) {
         const sessionDate = new Date(session.scheduledFor);
-        const dayKey = sessionDate.toISOString().split('T')[0];
+        const dayKey = getLocalDateKey(sessionDate);
         if (grouped.has(dayKey)) {
           grouped.get(dayKey)!.push(session);
         }
@@ -54,7 +65,7 @@ export function WeekView({
 
   // Get sessions for a specific time slot
   const getSessionsForSlot = (date: Date, hour: number) => {
-    const dayKey = date.toISOString().split('T')[0];
+    const dayKey = getLocalDateKey(date);
     const daySessions = sessionsByDay.get(dayKey) || [];
 
     return daySessions.filter(session => {
@@ -216,29 +227,37 @@ export function WeekView({
                       }`}
                       onClick={() => onTimeSlotClick?.(day, hour)}
                     >
-                      {slotSessions.map((session) => (
-                        <div
-                          key={session.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSessionClick?.(session);
-                          }}
-                          className={`mb-1 p-1 rounded text-xs cursor-pointer hover:shadow-md transition-shadow border-l-2 ${
-                            session.status === 'completed' ? 'border-l-green-500 bg-green-50 dark:bg-green-950' :
-                            session.status === 'in_progress' ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-950' :
-                            session.status === 'missed' ? 'border-l-red-500 bg-red-50 dark:bg-red-950' :
-                            session.status === 'cancelled' ? 'border-l-gray-500 bg-gray-50 dark:bg-gray-800' :
-                            'border-l-primary-500 bg-primary-50 dark:bg-primary-950'
-                          }`}
-                        >
-                          <div className="font-semibold text-gray-900 dark:text-white truncate">
-                            {getCategoryIcon(session.category)} {session.title}
+                      {slotSessions.map((session) => {
+                        const CategoryIcon = getCategoryIconComponent(session.category);
+                        return (
+                          <div
+                            key={session.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSessionClick?.(session);
+                            }}
+                            className={`mb-1 p-1 rounded text-xs cursor-pointer hover:shadow-md transition-shadow border-l-2 ${
+                              session.status === 'completed' ? 'border-l-green-500 bg-green-50 dark:bg-green-950' :
+                              session.status === 'in_progress' ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-950' :
+                              session.status === 'missed' ? 'border-l-red-500 bg-red-50 dark:bg-red-950' :
+                              session.status === 'cancelled' ? 'border-l-gray-500 bg-gray-50 dark:bg-gray-800' :
+                              'border-l-primary-500 bg-primary-50 dark:bg-primary-950'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1">
+                              <div className="p-0.5 bg-indigo-100 dark:bg-indigo-900 rounded flex-shrink-0">
+                                <CategoryIcon className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                              </div>
+                              <div className="font-semibold text-gray-900 dark:text-white truncate">
+                                {session.title}
+                              </div>
+                            </div>
+                            <div className="text-gray-600 dark:text-gray-400 text-[10px] mt-0.5">
+                              {formatTime(session.scheduledFor!)} • {getSessionDuration(session)}
+                            </div>
                           </div>
-                          <div className="text-gray-600 dark:text-gray-400 text-[10px]">
-                            {formatTime(session.scheduledFor!)} • {getSessionDuration(session)}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })}

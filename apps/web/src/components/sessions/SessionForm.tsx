@@ -7,9 +7,20 @@ interface SessionFormProps {
   onSubmit: (data: CreateSessionDto | UpdateSessionDto) => Promise<void>;
   onCancel: () => void;
   loading?: boolean;
+  initialDate?: Date;
 }
 
-export function SessionForm({ session, onSubmit, onCancel, loading }: SessionFormProps) {
+// Helper function to format Date to local datetime-local string (yyyy-MM-ddTHH:mm)
+function formatDateToLocalInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+export function SessionForm({ session, onSubmit, onCancel, loading, initialDate }: SessionFormProps) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -26,6 +37,7 @@ export function SessionForm({ session, onSubmit, onCancel, loading }: SessionFor
 
   useEffect(() => {
     if (session) {
+      // Edit mode: populate from existing session
       setFormData({
         title: session.title,
         description: session.description || '',
@@ -37,8 +49,14 @@ export function SessionForm({ session, onSubmit, onCancel, loading }: SessionFor
         tags: session.tags || [],
         notes: session.notes || '',
       });
+    } else if (initialDate) {
+      // Create mode with initial date: pre-fill scheduledFor
+      setFormData(prev => ({
+        ...prev,
+        scheduledFor: formatDateToLocalInput(initialDate),
+      }));
     }
-  }, [session]);
+  }, [session, initialDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
