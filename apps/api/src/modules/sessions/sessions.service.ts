@@ -766,57 +766,47 @@ export class SessionsService {
     const successful: SessionResponse[] = [];
     const failed: Array<{ session: CreateSessionDto; error: string }> = [];
 
-    // Use transaction with Promise.allSettled for partial success
-    await this.prisma.$transaction(async (prisma) => {
-      const results = await Promise.allSettled(
-        sessionsToCreate.map(async (session) => {
-          // Validate session
-          const validation = this.validateBulkSession(session);
-          if (!validation.valid) {
-            throw new Error(validation.error);
-          }
-
-          // Create session
-          const created = await prisma.session.create({
-            data: {
-              title: session.title,
-              description: session.description || null,
-              category: session.category.toUpperCase() as any,
-              status: session.status
-                ? (session.status.toUpperCase() as any)
-                : 'PLANNED',
-              priority: session.priority
-                ? (session.priority.toUpperCase() as any)
-                : 'MEDIUM',
-              duration: session.duration,
-              color: session.color || null,
-              tags: session.tags || [],
-              notes: session.notes || null,
-              scheduledFor: session.scheduledFor
-                ? new Date(session.scheduledFor)
-                : null,
-              userId,
-            },
-          });
-
-          return { session, created };
-        }),
-      );
-
-      // Process results
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          successful.push(
-            this.transformSession(result.value.created) as SessionResponse,
-          );
-        } else {
-          failed.push({
-            session: sessionsToCreate[index],
-            error: result.reason?.message || 'Unknown error',
-          });
+    // Process sessions sequentially to avoid parallel queries in transaction
+    // This allows partial success - some sessions can fail while others succeed
+    for (const session of sessionsToCreate) {
+      try {
+        // Validate session
+        const validation = this.validateBulkSession(session);
+        if (!validation.valid) {
+          throw new Error(validation.error);
         }
-      });
-    });
+
+        // Create session
+        const created = await this.prisma.session.create({
+          data: {
+            title: session.title,
+            description: session.description || null,
+            category: session.category.toUpperCase() as any,
+            status: session.status
+              ? (session.status.toUpperCase() as any)
+              : 'PLANNED',
+            priority: session.priority
+              ? (session.priority.toUpperCase() as any)
+              : 'MEDIUM',
+            duration: session.duration,
+            color: session.color || null,
+            tags: session.tags || [],
+            notes: session.notes || null,
+            scheduledFor: session.scheduledFor
+              ? new Date(session.scheduledFor)
+              : null,
+            userId,
+          },
+        });
+
+        successful.push(this.transformSession(created) as SessionResponse);
+      } catch (error) {
+        failed.push({
+          session,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
 
     return {
       successful,
@@ -838,72 +828,85 @@ export class SessionsService {
       ? new Date(baseSession.scheduledFor)
       : new Date();
 
-    let currentDate = new Date(startDate);
     let count = 0;
     const maxOccurrences = 365; // Safety limit
 
-    while (count < maxOccurrences) {
-      // Check end conditions
-      if (recurrence.endType === 'date' && recurrence.endDate) {
-        const endDate = new Date(recurrence.endDate);
-        if (currentDate > endDate) break;
-      }
+    if (recurrence.frequency === 'weekly' && recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0) {
+      // Special handling for weekly recurrence with specific days
+      // Compute the start of the week containing startDate
+      const weekStart = new Date(startDate);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
 
-      if (recurrence.endType === 'count' && recurrence.endCount) {
-        if (count >= recurrence.endCount) break;
-      }
+      let weekIndex = 0;
+      while (count < maxOccurrences) {
+        // Compute start of current week
+        const currentWeekStart = new Date(weekStart);
+        currentWeekStart.setDate(currentWeekStart.getDate() + weekIndex * recurrence.interval * 7);
 
-      // For weekly recurrence, filter by days of week
-      if (
-        recurrence.frequency === 'weekly' &&
-        recurrence.daysOfWeek &&
-        recurrence.daysOfWeek.length > 0
-      ) {
-        const dayOfWeek = currentDate.getDay();
-        if (recurrence.daysOfWeek.includes(dayOfWeek)) {
+        // Iterate through selected days of week
+        for (const dayOfWeek of recurrence.daysOfWeek.sort()) {
+          const occurrenceDate = new Date(currentWeekStart);
+          occurrenceDate.setDate(occurrenceDate.getDate() + dayOfWeek);
+
+          // Skip if before start date
+          if (occurrenceDate < startDate) continue;
+
+          // Check end conditions
+          if (recurrence.endType === 'date' && recurrence.endDate) {
+            const endDate = new Date(recurrence.endDate);
+            if (occurrenceDate > endDate) return sessions;
+          }
+
+          if (recurrence.endType === 'count' && recurrence.endCount) {
+            if (count >= recurrence.endCount) return sessions;
+          }
+
+          // Add session
           sessions.push({
             ...baseSession,
-            scheduledFor: currentDate.toISOString(),
+            scheduledFor: occurrenceDate.toISOString(),
           });
           count++;
+
+          if (count >= maxOccurrences) return sessions;
         }
-      } else {
-        // For daily and monthly, add every occurrence
+
+        weekIndex++;
+      }
+    } else {
+      // For daily and monthly recurrence
+      let currentDate = new Date(startDate);
+
+      while (count < maxOccurrences) {
+        // Check end conditions
+        if (recurrence.endType === 'date' && recurrence.endDate) {
+          const endDate = new Date(recurrence.endDate);
+          if (currentDate > endDate) break;
+        }
+
+        if (recurrence.endType === 'count' && recurrence.endCount) {
+          if (count >= recurrence.endCount) break;
+        }
+
+        // Add session
         sessions.push({
           ...baseSession,
           scheduledFor: currentDate.toISOString(),
         });
         count++;
-      }
 
-      // Increment date based on frequency
-      switch (recurrence.frequency) {
-        case 'daily':
+        // Increment date based on frequency
+        if (recurrence.frequency === 'daily') {
           currentDate.setDate(currentDate.getDate() + recurrence.interval);
-          break;
-        case 'weekly':
-          currentDate.setDate(currentDate.getDate() + 1);
-          // For weekly, we iterate day by day and filter
-          // After a full week cycle, jump by interval weeks if needed
-          if (currentDate.getDay() === startDate.getDay() && count > 0) {
-            if (recurrence.interval > 1) {
-              currentDate.setDate(
-                currentDate.getDate() + (recurrence.interval - 1) * 7,
-              );
-            }
-          }
-          break;
-        case 'monthly':
+        } else if (recurrence.frequency === 'weekly') {
+          // Weekly without specific days - just add interval weeks
+          currentDate.setDate(currentDate.getDate() + recurrence.interval * 7);
+        } else if (recurrence.frequency === 'monthly') {
           currentDate.setMonth(currentDate.getMonth() + recurrence.interval);
           if (recurrence.dayOfMonth) {
             currentDate.setDate(recurrence.dayOfMonth);
           }
-          break;
-      }
-
-      // Safety check for infinite loops
-      if (recurrence.endType === 'never' && count >= maxOccurrences) {
-        break;
+        }
       }
     }
 

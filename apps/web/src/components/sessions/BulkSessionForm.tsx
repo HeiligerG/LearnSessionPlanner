@@ -3,7 +3,10 @@ import type {
   CreateSessionDto,
   BulkCreateSessionDto,
   RecurrencePattern,
+  SessionCategory,
+  SessionPriority,
 } from '@repo/shared-types';
+import { SESSION_CATEGORIES, SESSION_PRIORITIES } from '@repo/shared-types';
 
 interface BulkSessionFormProps {
   onSubmit: (dto: BulkCreateSessionDto) => Promise<void>;
@@ -20,6 +23,39 @@ const EMPTY_SESSION: CreateSessionDto = {
   duration: 60,
   priority: 'medium',
   scheduledFor: new Date().toISOString(),
+};
+
+// Helper function to parse CSV line respecting quotes
+const parseCSVLine = (line: string): string[] => {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        current += '"';
+        i++; // Skip next quote
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // End of field
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  // Push last field
+  result.push(current.trim());
+  return result;
 };
 
 export function BulkSessionForm({
@@ -58,28 +94,33 @@ export function BulkSessionForm({
     reader.onload = (event) => {
       try {
         const text = event.target?.result as string;
-        const lines = text.split('\n').filter((line) => line.trim());
+        // Split by CRLF or LF, filter empty lines
+        const lines = text.split(/\r?\n/).filter((line) => line.trim());
+
         if (lines.length < 2) {
           setCsvError('CSV file must have at least a header row and one data row');
           return;
         }
 
-        const headers = lines[0].split(',').map((h) => h.trim());
+        const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
         const parsed: CreateSessionDto[] = [];
 
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map((v) => v.trim());
+          const values = parseCSVLine(lines[i]);
           const session: any = {};
 
           headers.forEach((header, index) => {
-            const value = values[index];
-            if (header === 'title') session.title = value;
-            else if (header === 'category') session.category = value;
-            else if (header === 'duration') session.duration = parseInt(value, 10);
-            else if (header === 'scheduledFor') session.scheduledFor = value;
-            else if (header === 'priority') session.priority = value;
-            else if (header === 'description') session.description = value;
-            else if (header === 'tags') session.tags = value ? value.split(';') : [];
+            const value = values[index] || '';
+            // Remove surrounding quotes if present
+            const cleanValue = value.replace(/^"(.*)"$/, '$1');
+
+            if (header === 'title') session.title = cleanValue;
+            else if (header === 'category') session.category = cleanValue;
+            else if (header === 'duration') session.duration = parseInt(cleanValue, 10);
+            else if (header === 'scheduledfor') session.scheduledFor = cleanValue;
+            else if (header === 'priority') session.priority = cleanValue;
+            else if (header === 'description') session.description = cleanValue;
+            else if (header === 'tags') session.tags = cleanValue ? cleanValue.split(';') : [];
           });
 
           if (!session.title || !session.category || !session.duration) {
@@ -92,7 +133,7 @@ export function BulkSessionForm({
 
         setCsvData(parsed);
       } catch (err) {
-        setCsvError('Failed to parse CSV file');
+        setCsvError(`Failed to parse CSV file: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     };
 
@@ -104,28 +145,52 @@ export function BulkSessionForm({
     const startDate = new Date(recurrenceBase.scheduledFor || new Date());
     let currentDate = new Date(startDate);
     let count = 0;
-    const maxPreview = recurrencePattern.endCount || 10;
+    const maxOccurrences = recurrencePattern.endType === 'never' ? 365 : (recurrencePattern.endCount || 10);
 
-    while (count < maxPreview) {
+    while (count < maxOccurrences) {
+      // Check end date condition
       if (recurrencePattern.endType === 'date' && recurrencePattern.endDate) {
         if (currentDate > new Date(recurrencePattern.endDate)) break;
       }
 
-      preview.push({
-        ...recurrenceBase,
-        scheduledFor: currentDate.toISOString(),
-      });
-      count++;
+      // For weekly with specific days
+      if (recurrencePattern.frequency === 'weekly' && recurrencePattern.daysOfWeek && recurrencePattern.daysOfWeek.length > 0) {
+        const dayOfWeek = currentDate.getDay();
+        if (recurrencePattern.daysOfWeek.includes(dayOfWeek)) {
+          preview.push({
+            ...recurrenceBase,
+            scheduledFor: currentDate.toISOString(),
+          });
+          count++;
+        }
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+      } else {
+        // Daily and monthly, or weekly without specific days
+        preview.push({
+          ...recurrenceBase,
+          scheduledFor: currentDate.toISOString(),
+        });
+        count++;
 
-      if (recurrencePattern.frequency === 'daily') {
-        currentDate.setDate(currentDate.getDate() + recurrencePattern.interval);
-      } else if (recurrencePattern.frequency === 'weekly') {
-        currentDate.setDate(currentDate.getDate() + recurrencePattern.interval * 7);
-      } else if (recurrencePattern.frequency === 'monthly') {
-        currentDate.setMonth(currentDate.getMonth() + recurrencePattern.interval);
+        // Increment based on frequency
+        if (recurrencePattern.frequency === 'daily') {
+          currentDate.setDate(currentDate.getDate() + recurrencePattern.interval);
+        } else if (recurrencePattern.frequency === 'weekly') {
+          currentDate.setDate(currentDate.getDate() + recurrencePattern.interval * 7);
+        } else if (recurrencePattern.frequency === 'monthly') {
+          currentDate.setMonth(currentDate.getMonth() + recurrencePattern.interval);
+          if (recurrencePattern.dayOfMonth) {
+            currentDate.setDate(recurrencePattern.dayOfMonth);
+          }
+        }
       }
 
-      if (recurrencePattern.endType === 'count' && count >= maxPreview) break;
+      // Check count condition
+      if (recurrencePattern.endType === 'count' && count >= maxOccurrences) break;
+
+      // Safety check to prevent infinite loops
+      if (count >= 365) break;
     }
 
     setPreviewSessions(preview);
@@ -209,18 +274,16 @@ export function BulkSessionForm({
                 value={session.category}
                 onChange={(e) => {
                   const updated = [...manualSessions];
-                  updated[index].category = e.target.value as any;
+                  updated[index].category = e.target.value as SessionCategory;
                   setManualSessions(updated);
                 }}
                 className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
               >
-                <option value="programming">Programming</option>
-                <option value="mathematics">Mathematics</option>
-                <option value="science">Science</option>
-                <option value="language">Language</option>
-                <option value="art">Art</option>
-                <option value="music">Music</option>
-                <option value="other">Other</option>
+                {SESSION_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </option>
+                ))}
               </select>
               <input
                 type="number"
@@ -234,6 +297,21 @@ export function BulkSessionForm({
                 className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
                 required
               />
+              <select
+                value={session.priority || 'medium'}
+                onChange={(e) => {
+                  const updated = [...manualSessions];
+                  updated[index].priority = e.target.value as SessionPriority;
+                  setManualSessions(updated);
+                }}
+                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
+              >
+                {SESSION_PRIORITIES.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                  </option>
+                ))}
+              </select>
               <input
                 type="datetime-local"
                 value={session.scheduledFor?.slice(0, 16)}
@@ -242,13 +320,13 @@ export function BulkSessionForm({
                   updated[index].scheduledFor = new Date(e.target.value).toISOString();
                   setManualSessions(updated);
                 }}
-                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
+                className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white col-span-2"
               />
               {manualSessions.length > 1 && (
                 <button
                   type="button"
                   onClick={() => setManualSessions(manualSessions.filter((_, i) => i !== index))}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md"
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md col-span-2"
                 >
                   Remove
                 </button>
@@ -282,7 +360,10 @@ export function BulkSessionForm({
               CSV format: title,category,duration,scheduledFor,priority,description,tags
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-500">
-              Example: "Math Study,mathematics,60,2025-01-15T10:00:00Z,high,Algebra review,math;algebra"
+              Valid categories: {SESSION_CATEGORIES.join(', ')}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-500">
+              Example: "Math Study,school,60,2025-01-15T10:00:00Z,high,Algebra review,math;algebra"
             </p>
           </div>
           {csvError && (
@@ -337,16 +418,14 @@ export function BulkSessionForm({
             />
             <select
               value={recurrenceBase.category}
-              onChange={(e) => setRecurrenceBase({ ...recurrenceBase, category: e.target.value as any })}
+              onChange={(e) => setRecurrenceBase({ ...recurrenceBase, category: e.target.value as SessionCategory })}
               className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
             >
-              <option value="programming">Programming</option>
-              <option value="mathematics">Mathematics</option>
-              <option value="science">Science</option>
-              <option value="language">Language</option>
-              <option value="art">Art</option>
-              <option value="music">Music</option>
-              <option value="other">Other</option>
+              {SESSION_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </option>
+              ))}
             </select>
             <input
               type="number"
@@ -356,11 +435,22 @@ export function BulkSessionForm({
               className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
               required
             />
+            <select
+              value={recurrenceBase.priority || 'medium'}
+              onChange={(e) => setRecurrenceBase({ ...recurrenceBase, priority: e.target.value as SessionPriority })}
+              className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
+            >
+              {SESSION_PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                </option>
+              ))}
+            </select>
             <input
               type="datetime-local"
               value={recurrenceBase.scheduledFor?.slice(0, 16)}
               onChange={(e) => setRecurrenceBase({ ...recurrenceBase, scheduledFor: new Date(e.target.value).toISOString() })}
-              className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
+              className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white col-span-2"
             />
           </div>
 
@@ -388,6 +478,49 @@ export function BulkSessionForm({
                 <span className="text-sm text-gray-600 dark:text-gray-400">{recurrencePattern.frequency}</span>
               </div>
             </div>
+
+            {/* Days of Week for weekly recurrence */}
+            {recurrencePattern.frequency === 'weekly' && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days of Week</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                    <label key={index} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={recurrencePattern.daysOfWeek?.includes(index) || false}
+                        onChange={(e) => {
+                          const days = recurrencePattern.daysOfWeek || [];
+                          if (e.target.checked) {
+                            setRecurrencePattern({ ...recurrencePattern, daysOfWeek: [...days, index].sort() });
+                          } else {
+                            setRecurrencePattern({ ...recurrencePattern, daysOfWeek: days.filter(d => d !== index) });
+                          }
+                        }}
+                        className="text-primary-600"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{day}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Day of Month for monthly recurrence */}
+            {recurrencePattern.frequency === 'monthly' && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Day of Month</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={recurrencePattern.dayOfMonth || ''}
+                  onChange={(e) => setRecurrencePattern({ ...recurrencePattern, dayOfMonth: parseInt(e.target.value, 10) })}
+                  placeholder="Leave empty for current day"
+                  className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white w-32"
+                />
+              </div>
+            )}
 
             <div className="mt-3 space-y-2">
               <label className="flex items-center gap-2">
@@ -421,6 +554,15 @@ export function BulkSessionForm({
                   onChange={(e) => setRecurrencePattern({ ...recurrencePattern, endDate: new Date(e.target.value).toISOString(), endType: 'date' })}
                   className="px-3 py-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white"
                 />
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  checked={recurrencePattern.endType === 'never'}
+                  onChange={() => setRecurrencePattern({ ...recurrencePattern, endType: 'never' })}
+                  className="text-primary-600"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Never (max 365 occurrences)</span>
               </label>
             </div>
 

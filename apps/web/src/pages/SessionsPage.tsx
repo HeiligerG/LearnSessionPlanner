@@ -1,15 +1,16 @@
 import React, { useState, useMemo } from 'react'
-import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto } from '@repo/shared-types'
+import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto, BulkCreateSessionDto, BulkCreateResult } from '@repo/shared-types'
 import { useSessions } from '@/hooks/useSessions'
 import { SessionCard } from '@/components/sessions/SessionCard'
 import { SessionForm } from '@/components/sessions/SessionForm'
+import BulkSessionForm from '@/components/sessions/BulkSessionForm'
 import { filterSessions, sortSessions, groupSessionsByDate } from '@/utils/sessionUtils'
 
 type SortOption = 'date' | 'priority' | 'status' | 'category'
 type GroupOption = 'none' | 'date' | 'status' | 'category'
 
 const SessionsPage: React.FC = () => {
-  const { sessions: rawSessions, loading, error, createSession, updateSession, deleteSession, refetch, updateFilters, filters } = useSessions()
+  const { sessions: rawSessions, loading, error, createSession, bulkCreateSessions, updateSession, deleteSession, refetch, updateFilters, filters } = useSessions()
 
   // Normalize sessions at the boundary - filter out any invalid entries
   const sessions = useMemo(() => {
@@ -24,6 +25,8 @@ const SessionsPage: React.FC = () => {
   }, [rawSessions])
 
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isBulkFormOpen, setIsBulkFormOpen] = useState(false)
+  const [bulkResult, setBulkResult] = useState<BulkCreateResult | null>(null)
   const [selectedSession, setSelectedSession] = useState<SessionResponse | undefined>()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('date')
@@ -98,6 +101,17 @@ const SessionsPage: React.FC = () => {
     setSelectedSession(undefined)
   }
 
+  const handleBulkCreate = async (dto: BulkCreateSessionDto) => {
+    try {
+      const result = await bulkCreateSessions(dto)
+      setBulkResult(result)
+      setIsBulkFormOpen(false)
+      refetch()
+    } catch (err) {
+      console.error('Bulk create failed:', err)
+    }
+  }
+
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -125,13 +139,71 @@ const SessionsPage: React.FC = () => {
               Manage and track your learning sessions
             </p>
           </div>
-          <button
-            onClick={() => setIsFormOpen(true)}
-            className="mt-4 sm:mt-0 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 transition-colors shadow-md"
-          >
-            New Session
-          </button>
+          <div className="flex gap-3 mt-4 sm:mt-0">
+            <button
+              onClick={() => setIsBulkFormOpen(true)}
+              className="px-6 py-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-md"
+            >
+              Bulk Create
+            </button>
+            <button
+              onClick={() => setIsFormOpen(true)}
+              className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 transition-colors shadow-md"
+            >
+              New Session
+            </button>
+          </div>
         </div>
+
+        {/* Bulk Result Summary */}
+        {bulkResult && (
+          <div className={`mb-6 p-4 rounded-lg border ${
+            bulkResult.totalFailed === 0
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+              : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+          }`}>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className={`font-semibold mb-2 ${
+                  bulkResult.totalFailed === 0
+                    ? 'text-green-800 dark:text-green-200'
+                    : 'text-yellow-800 dark:text-yellow-200'
+                }`}>
+                  Bulk Create Summary
+                </h3>
+                <p className={bulkResult.totalFailed === 0
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-yellow-700 dark:text-yellow-300'
+                }>
+                  Successfully created {bulkResult.totalCreated} session{bulkResult.totalCreated !== 1 ? 's' : ''}.
+                  {bulkResult.totalFailed > 0 && ` ${bulkResult.totalFailed} failed.`}
+                </p>
+                {bulkResult.failed.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                      Failed sessions (showing first 5):
+                    </p>
+                    <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-300">
+                      {bulkResult.failed.slice(0, 5).map((failure, idx) => (
+                        <li key={idx}>
+                          {failure.session.title || 'Untitled'}: {failure.error}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setBulkResult(null)}
+                className="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Filters and Controls */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
@@ -337,6 +409,34 @@ const SessionsPage: React.FC = () => {
                   : (data) => handleCreateSession(data as CreateSessionDto)
                 }
                 onCancel={handleCloseForm}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Session Form Modal */}
+      {isBulkFormOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Bulk Create Sessions
+                </h2>
+                <button
+                  onClick={() => setIsBulkFormOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <BulkSessionForm
+                onSubmit={handleBulkCreate}
+                onCancel={() => setIsBulkFormOpen(false)}
+                loading={loading}
               />
             </div>
           </div>
