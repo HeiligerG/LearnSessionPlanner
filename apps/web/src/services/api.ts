@@ -17,6 +17,11 @@ import type {
   SessionFilters,
   SessionStatsDto,
   CalendarSessionDto,
+  DetailedStatsDto,
+  CategoryStatsDto,
+  TrendDataPoint,
+  BulkCreateSessionDto,
+  BulkCreateResult,
 } from '@repo/shared-types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -176,6 +181,13 @@ export const api = {
     },
 
     /**
+     * Bulk create sessions
+     */
+    bulkCreate(dto: BulkCreateSessionDto): Promise<ApiResponse<BulkCreateResult>> {
+      return apiClient.post<ApiResponse<BulkCreateResult>>('/sessions/bulk', dto)
+    },
+
+    /**
      * Update an existing session
      */
     update(id: string, dto: UpdateSessionDto): Promise<ApiResponse<SessionResponse>> {
@@ -218,6 +230,42 @@ export const api = {
 
       const query = params.toString()
       return apiClient.get<ApiResponse<SessionResponse[]>>(`/sessions/calendar?${query}`)
+    },
+
+    /**
+     * Get detailed statistics
+     */
+    getDetailedStats(startDate?: string, endDate?: string): Promise<ApiResponse<DetailedStatsDto>> {
+      const params = new URLSearchParams()
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+
+      const query = params.toString() ? `?${params.toString()}` : ''
+      return apiClient.get<ApiResponse<DetailedStatsDto>>(`/sessions/stats/detailed${query}`)
+    },
+
+    /**
+     * Get category statistics
+     */
+    getCategoryStats(startDate?: string, endDate?: string): Promise<ApiResponse<CategoryStatsDto[]>> {
+      const params = new URLSearchParams()
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+
+      const query = params.toString() ? `?${params.toString()}` : ''
+      return apiClient.get<ApiResponse<CategoryStatsDto[]>>(`/sessions/stats/category${query}`)
+    },
+
+    /**
+     * Get trend data
+     */
+    getTrendData(startDate: string, endDate: string): Promise<ApiResponse<TrendDataPoint[]>> {
+      const params = new URLSearchParams()
+      params.append('startDate', startDate)
+      params.append('endDate', endDate)
+
+      const query = params.toString()
+      return apiClient.get<ApiResponse<TrendDataPoint[]>>(`/sessions/stats/trends?${query}`)
     },
   },
 }

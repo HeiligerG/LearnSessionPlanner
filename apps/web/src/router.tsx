@@ -3,6 +3,7 @@ import LandingPage from '@pages/LandingPage'
 import DashboardPage from '@pages/DashboardPage'
 import CalendarPage from '@pages/CalendarPage'
 import SessionsPage from '@pages/SessionsPage'
+import StatisticsPage from '@pages/StatisticsPage'
 import RootLayout from '@components/layouts/RootLayout'
 
 const routes: RouteObject[] = [
@@ -25,6 +26,10 @@ const routes: RouteObject[] = [
       {
         path: 'sessions',
         element: <SessionsPage />
+      },
+      {
+        path: 'statistics',
+        element: <StatisticsPage />
       }
     ]
   }

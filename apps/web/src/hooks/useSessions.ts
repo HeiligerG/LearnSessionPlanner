@@ -5,6 +5,8 @@ import type {
   CreateSessionDto,
   UpdateSessionDto,
   SessionFilters,
+  BulkCreateSessionDto,
+  BulkCreateResult,
 } from '@repo/shared-types';
 
 export function useSessions(initialFilters?: SessionFilters) {
@@ -81,6 +83,24 @@ export function useSessions(initialFilters?: SessionFilters) {
     }
   }, []);
 
+  const bulkCreateSessions = useCallback(async (dto: BulkCreateSessionDto): Promise<BulkCreateResult> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.sessions.bulkCreate(dto);
+      const result = response.data;
+      if (result && result.successful.length > 0) {
+        setSessions((prev) => [...result.successful, ...prev]);
+      }
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to bulk create sessions'));
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const refetch = useCallback(() => {
     fetchSessions();
   }, [fetchSessions]);
@@ -100,6 +120,7 @@ export function useSessions(initialFilters?: SessionFilters) {
     filters,
     fetchSessions,
     createSession,
+    bulkCreateSessions,
     updateSession,
     deleteSession,
     refetch,

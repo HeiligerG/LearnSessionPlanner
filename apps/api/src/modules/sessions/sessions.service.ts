@@ -10,6 +10,15 @@ import type {
   SessionFilters,
   PaginationQuery,
   SessionStatsDto,
+  CategoryStatsDto,
+  TrendDataPoint,
+  TimeDistributionDto,
+  ProductivityMetricsDto,
+  DetailedStatsDto,
+  BulkCreateSessionDto,
+  BulkCreateResult,
+  RecurrencePattern,
+  SessionResponse,
 } from '@repo/shared-types';
 import { Prisma } from '@prisma/client';
 
@@ -71,7 +80,7 @@ export class SessionsService {
     pagination?: PaginationQuery,
   ) {
     // Build where clause
-    const where: Prisma.SessionWhereInput = {
+    const where: any = {
       userId,
     };
 
@@ -251,7 +260,7 @@ export class SessionsService {
     startDate?: Date,
     endDate?: Date,
   ): Promise<SessionStatsDto> {
-    const where: Prisma.SessionWhereInput = { userId };
+    const where: any = { userId };
 
     if (startDate || endDate) {
       where.scheduledFor = {};
@@ -298,6 +307,404 @@ export class SessionsService {
     };
   }
 
+  async getCategoryStats(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<CategoryStatsDto[]> {
+    const where: any = { userId };
+
+    if (startDate || endDate) {
+      where.scheduledFor = {};
+      if (startDate) where.scheduledFor.gte = startDate;
+      if (endDate) where.scheduledFor.lte = endDate;
+    }
+
+    // Group all sessions by category
+    const allSessionsGrouped = await this.prisma.session.groupBy({
+      by: ['category'],
+      where,
+      _count: { _all: true },
+      _sum: { duration: true },
+    });
+
+    // Group completed sessions by category
+    const completedSessionsGrouped = await this.prisma.session.groupBy({
+      by: ['category'],
+      where: { ...where, status: 'COMPLETED' },
+      _count: { _all: true },
+      _sum: { duration: true, actualDuration: true },
+    });
+
+    // Create map for completed sessions by category
+    const completedMap = new Map(
+      completedSessionsGrouped.map((group) => [
+        group.category,
+        {
+          count: group._count._all,
+          duration: group._sum.actualDuration || group._sum.duration || 0,
+        },
+      ]),
+    );
+
+    // Build result
+    const result: CategoryStatsDto[] = allSessionsGrouped.map((group) => {
+      const completed = completedMap.get(group.category) || {
+        count: 0,
+        duration: 0,
+      };
+      const totalSessions = group._count._all;
+      const completedSessions = completed.count;
+
+      return {
+        category: group.category.toLowerCase() as any,
+        totalSessions,
+        completedSessions,
+        totalDuration: group._sum.duration || 0,
+        completedDuration: completed.duration,
+        completionRate:
+          totalSessions > 0
+            ? Math.round((completedSessions / totalSessions) * 10000) / 100
+            : 0,
+      };
+    });
+
+    return result;
+  }
+
+  async getTrendData(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<TrendDataPoint[]> {
+    // Helper to format date as YYYY-MM-DD in local time
+    const formatLocalDate = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const sessions = await this.prisma.session.findMany({
+      where: {
+        userId,
+        scheduledFor: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      orderBy: { scheduledFor: 'asc' },
+    });
+
+    // Group by date
+    const dateMap = new Map<string, TrendDataPoint>();
+
+    // Generate date range using local date
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateKey = formatLocalDate(currentDate);
+      dateMap.set(dateKey, {
+        date: dateKey,
+        planned: 0,
+        completed: 0,
+        inProgress: 0,
+        missed: 0,
+        cancelled: 0,
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Count sessions by status per date using local date
+    sessions.forEach((session: any) => {
+      if (!session.scheduledFor) return;
+      const dateKey = formatLocalDate(new Date(session.scheduledFor));
+      const point = dateMap.get(dateKey);
+      if (!point) return;
+
+      switch (session.status) {
+        case 'PLANNED':
+          point.planned++;
+          break;
+        case 'COMPLETED':
+          point.completed++;
+          break;
+        case 'IN_PROGRESS':
+          point.inProgress++;
+          break;
+        case 'MISSED':
+          point.missed++;
+          break;
+        case 'CANCELLED':
+          point.cancelled++;
+          break;
+      }
+    });
+
+    return Array.from(dateMap.values());
+  }
+
+  async getTimeDistribution(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<TimeDistributionDto> {
+    const where: any = { userId };
+
+    if (startDate || endDate) {
+      where.scheduledFor = {};
+      if (startDate) where.scheduledFor.gte = startDate;
+      if (endDate) where.scheduledFor.lte = endDate;
+    }
+
+    const sessions = await this.prisma.session.findMany({ where });
+
+    if (sessions.length === 0) {
+      return {
+        totalPlannedHours: 0,
+        totalCompletedHours: 0,
+        averageSessionDuration: 0,
+        longestSession: 0,
+        shortestSession: 0,
+        byDayOfWeek: [
+          { day: 'Sunday', hours: 0 },
+          { day: 'Monday', hours: 0 },
+          { day: 'Tuesday', hours: 0 },
+          { day: 'Wednesday', hours: 0 },
+          { day: 'Thursday', hours: 0 },
+          { day: 'Friday', hours: 0 },
+          { day: 'Saturday', hours: 0 },
+        ],
+      };
+    }
+
+    const totalPlannedMinutes = sessions.reduce(
+      (sum: number, s: any) => sum + s.duration,
+      0,
+    );
+    const completedSessions = sessions.filter((s: any) => s.status === 'COMPLETED');
+    const totalCompletedMinutes = completedSessions.reduce(
+      (sum: number, s: any) => sum + (s.actualDuration || s.duration),
+      0,
+    );
+
+    const durations = sessions.map((s: any) => s.duration);
+    const avgDuration =
+      durations.reduce((sum: number, d: number) => sum + d, 0) / durations.length;
+    const longestSession = Math.max(...durations);
+    const shortestSession = Math.min(...durations);
+
+    // Group by day of week
+    const dayMap = new Map<number, number>();
+    sessions.forEach((session: any) => {
+      if (session.scheduledFor) {
+        const day = session.scheduledFor.getDay();
+        dayMap.set(day, (dayMap.get(day) || 0) + session.duration / 60);
+      }
+    });
+
+    const dayNames = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+    const byDayOfWeek = dayNames.map((day, index) => ({
+      day,
+      hours: Math.round((dayMap.get(index) || 0) * 100) / 100,
+    }));
+
+    return {
+      totalPlannedHours: Math.round((totalPlannedMinutes / 60) * 100) / 100,
+      totalCompletedHours:
+        Math.round((totalCompletedMinutes / 60) * 100) / 100,
+      averageSessionDuration: Math.round(avgDuration * 100) / 100,
+      longestSession,
+      shortestSession,
+      byDayOfWeek,
+    };
+  }
+
+  async getProductivityMetrics(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<ProductivityMetricsDto> {
+    const where: any = { userId };
+
+    if (startDate || endDate) {
+      where.scheduledFor = {};
+      if (startDate) where.scheduledFor.gte = startDate;
+      if (endDate) where.scheduledFor.lte = endDate;
+    }
+
+    const sessions = await this.prisma.session.findMany({
+      where,
+      orderBy: { scheduledFor: 'asc' },
+    });
+
+    if (sessions.length === 0) {
+      return {
+        completionRate: 0,
+        onTimeCompletionRate: 0,
+        averageDelayDays: 0,
+        mostProductiveCategory: 'programming' as any,
+        mostProductiveTimeOfDay: 'morning',
+        streakDays: 0,
+      };
+    }
+
+    // Completion rate
+    const completed = sessions.filter((s: any) => s.status === 'COMPLETED').length;
+    const completionRate =
+      Math.round((completed / sessions.length) * 10000) / 100;
+
+    // On-time completion
+    const onTimeCompleted = sessions.filter(
+      (s: any) =>
+        s.status === 'COMPLETED' &&
+        s.scheduledFor &&
+        s.completedAt &&
+        new Date(s.scheduledFor).toDateString() ===
+          new Date(s.completedAt).toDateString(),
+    ).length;
+    const onTimeCompletionRate =
+      completed > 0 ? Math.round((onTimeCompleted / completed) * 10000) / 100 : 0;
+
+    // Average delay
+    const delaysInDays = sessions
+      .filter(
+        (s: any) => s.status === 'COMPLETED' && s.scheduledFor && s.completedAt,
+      )
+      .map((s: any) => {
+        const scheduled = new Date(s.scheduledFor!).getTime();
+        const completed = new Date(s.completedAt!).getTime();
+        return (completed - scheduled) / (1000 * 60 * 60 * 24);
+      });
+    const averageDelayDays =
+      delaysInDays.length > 0
+        ? Math.round(
+            (delaysInDays.reduce((sum: number, d: number) => sum + d, 0) / delaysInDays.length) *
+              100,
+          ) / 100
+        : 0;
+
+    // Most productive category
+    const categoryMap = new Map<string, { total: number; completed: number }>();
+    sessions.forEach((s: any) => {
+      const cat = s.category.toLowerCase();
+      if (!categoryMap.has(cat)) {
+        categoryMap.set(cat, { total: 0, completed: 0 });
+      }
+      const stats = categoryMap.get(cat)!;
+      stats.total++;
+      if (s.status === 'COMPLETED') stats.completed++;
+    });
+
+    let mostProductiveCategory: any = 'other';
+    let highestRate = 0;
+    categoryMap.forEach((stats, cat) => {
+      const rate = stats.completed / stats.total;
+      if (rate > highestRate) {
+        highestRate = rate;
+        mostProductiveCategory = cat;
+      }
+    });
+
+    // Most productive time of day
+    const timeMap = new Map<string, { total: number; completed: number }>();
+    ['morning', 'afternoon', 'evening'].forEach((t) =>
+      timeMap.set(t, { total: 0, completed: 0 }),
+    );
+
+    sessions.forEach((s: any) => {
+      if (s.scheduledFor) {
+        const hour = s.scheduledFor.getHours();
+        let timeOfDay = 'morning';
+        if (hour >= 12 && hour < 18) timeOfDay = 'afternoon';
+        else if (hour >= 18) timeOfDay = 'evening';
+
+        const stats = timeMap.get(timeOfDay)!;
+        stats.total++;
+        if (s.status === 'COMPLETED') stats.completed++;
+      }
+    });
+
+    let mostProductiveTimeOfDay = 'morning';
+    let highestTimeRate = 0;
+    timeMap.forEach((stats, time) => {
+      if (stats.total > 0) {
+        const rate = stats.completed / stats.total;
+        if (rate > highestTimeRate) {
+          highestTimeRate = rate;
+          mostProductiveTimeOfDay = time;
+        }
+      }
+    });
+
+    // Streak calculation
+    const completedDates = sessions
+      .filter((s: any) => s.status === 'COMPLETED' && s.completedAt)
+      .map((s: any) => new Date(s.completedAt!).toDateString())
+      .filter((date: string, index: number, self: string[]) => self.indexOf(date) === index)
+      .sort();
+
+    let streakDays = 0;
+    if (completedDates.length > 0) {
+      const today = new Date().toDateString();
+      if (completedDates[completedDates.length - 1] === today) {
+        streakDays = 1;
+        for (let i = completedDates.length - 2; i >= 0; i--) {
+          const current = new Date(completedDates[i]);
+          const next = new Date(completedDates[i + 1]);
+          const diffDays =
+            (next.getTime() - current.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays === 1) {
+            streakDays++;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      completionRate,
+      onTimeCompletionRate,
+      averageDelayDays,
+      mostProductiveCategory,
+      mostProductiveTimeOfDay,
+      streakDays,
+    };
+  }
+
+  async getDetailedStats(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<DetailedStatsDto> {
+    const [overview, byCategory, trends, timeDistribution, productivity] =
+      await Promise.all([
+        this.getStats(userId, startDate, endDate),
+        this.getCategoryStats(userId, startDate, endDate),
+        startDate && endDate
+          ? this.getTrendData(userId, startDate, endDate)
+          : Promise.resolve([]),
+        this.getTimeDistribution(userId, startDate, endDate),
+        this.getProductivityMetrics(userId, startDate, endDate),
+      ]);
+
+    return {
+      overview,
+      byCategory,
+      trends,
+      timeDistribution,
+      productivity,
+    };
+  }
+
   async autoUpdateMissedSessions() {
     const now = new Date();
 
@@ -314,5 +721,221 @@ export class SessionsService {
     });
 
     return result.count;
+  }
+
+  /**
+   * Bulk create sessions with optional recurrence pattern
+   */
+  async bulkCreate(
+    userId: string,
+    dto: BulkCreateSessionDto,
+  ): Promise<BulkCreateResult> {
+    // Expand recurrence pattern if provided
+    let sessionsToCreate: CreateSessionDto[] = [];
+
+    if (dto.recurrence && dto.sessions.length > 0) {
+      // Apply recurrence to all sessions if applyRecurrenceToAll is true
+      if (dto.applyRecurrenceToAll !== false) {
+        for (const baseSession of dto.sessions) {
+          const expandedSessions = this.expandRecurrencePattern(
+            baseSession,
+            dto.recurrence,
+          );
+          sessionsToCreate.push(...expandedSessions);
+        }
+      } else {
+        // Only apply to first session
+        const expandedSessions = this.expandRecurrencePattern(
+          dto.sessions[0],
+          dto.recurrence,
+        );
+        sessionsToCreate.push(...expandedSessions);
+        sessionsToCreate.push(...dto.sessions.slice(1));
+      }
+    } else {
+      sessionsToCreate = dto.sessions;
+    }
+
+    // Limit to 500 sessions
+    if (sessionsToCreate.length > 500) {
+      throw new BadRequestException(
+        'Cannot create more than 500 sessions at once',
+      );
+    }
+
+    const successful: SessionResponse[] = [];
+    const failed: Array<{ session: CreateSessionDto; error: string }> = [];
+
+    // Use transaction with Promise.allSettled for partial success
+    await this.prisma.$transaction(async (prisma) => {
+      const results = await Promise.allSettled(
+        sessionsToCreate.map(async (session) => {
+          // Validate session
+          const validation = this.validateBulkSession(session);
+          if (!validation.valid) {
+            throw new Error(validation.error);
+          }
+
+          // Create session
+          const created = await prisma.session.create({
+            data: {
+              title: session.title,
+              description: session.description || null,
+              category: session.category.toUpperCase() as any,
+              status: session.status
+                ? (session.status.toUpperCase() as any)
+                : 'PLANNED',
+              priority: session.priority
+                ? (session.priority.toUpperCase() as any)
+                : 'MEDIUM',
+              duration: session.duration,
+              color: session.color || null,
+              tags: session.tags || [],
+              notes: session.notes || null,
+              scheduledFor: session.scheduledFor
+                ? new Date(session.scheduledFor)
+                : null,
+              userId,
+            },
+          });
+
+          return { session, created };
+        }),
+      );
+
+      // Process results
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          successful.push(
+            this.transformSession(result.value.created) as SessionResponse,
+          );
+        } else {
+          failed.push({
+            session: sessionsToCreate[index],
+            error: result.reason?.message || 'Unknown error',
+          });
+        }
+      });
+    });
+
+    return {
+      successful,
+      failed,
+      totalCreated: successful.length,
+      totalFailed: failed.length,
+    };
+  }
+
+  /**
+   * Expand recurrence pattern into individual sessions
+   */
+  private expandRecurrencePattern(
+    baseSession: CreateSessionDto,
+    recurrence: RecurrencePattern,
+  ): CreateSessionDto[] {
+    const sessions: CreateSessionDto[] = [];
+    const startDate = baseSession.scheduledFor
+      ? new Date(baseSession.scheduledFor)
+      : new Date();
+
+    let currentDate = new Date(startDate);
+    let count = 0;
+    const maxOccurrences = 365; // Safety limit
+
+    while (count < maxOccurrences) {
+      // Check end conditions
+      if (recurrence.endType === 'date' && recurrence.endDate) {
+        const endDate = new Date(recurrence.endDate);
+        if (currentDate > endDate) break;
+      }
+
+      if (recurrence.endType === 'count' && recurrence.endCount) {
+        if (count >= recurrence.endCount) break;
+      }
+
+      // For weekly recurrence, filter by days of week
+      if (
+        recurrence.frequency === 'weekly' &&
+        recurrence.daysOfWeek &&
+        recurrence.daysOfWeek.length > 0
+      ) {
+        const dayOfWeek = currentDate.getDay();
+        if (recurrence.daysOfWeek.includes(dayOfWeek)) {
+          sessions.push({
+            ...baseSession,
+            scheduledFor: currentDate.toISOString(),
+          });
+          count++;
+        }
+      } else {
+        // For daily and monthly, add every occurrence
+        sessions.push({
+          ...baseSession,
+          scheduledFor: currentDate.toISOString(),
+        });
+        count++;
+      }
+
+      // Increment date based on frequency
+      switch (recurrence.frequency) {
+        case 'daily':
+          currentDate.setDate(currentDate.getDate() + recurrence.interval);
+          break;
+        case 'weekly':
+          currentDate.setDate(currentDate.getDate() + 1);
+          // For weekly, we iterate day by day and filter
+          // After a full week cycle, jump by interval weeks if needed
+          if (currentDate.getDay() === startDate.getDay() && count > 0) {
+            if (recurrence.interval > 1) {
+              currentDate.setDate(
+                currentDate.getDate() + (recurrence.interval - 1) * 7,
+              );
+            }
+          }
+          break;
+        case 'monthly':
+          currentDate.setMonth(currentDate.getMonth() + recurrence.interval);
+          if (recurrence.dayOfMonth) {
+            currentDate.setDate(recurrence.dayOfMonth);
+          }
+          break;
+      }
+
+      // Safety check for infinite loops
+      if (recurrence.endType === 'never' && count >= maxOccurrences) {
+        break;
+      }
+    }
+
+    return sessions;
+  }
+
+  /**
+   * Validate a bulk session
+   */
+  private validateBulkSession(session: CreateSessionDto): {
+    valid: boolean;
+    error?: string;
+  } {
+    if (!session.title || session.title.trim().length === 0) {
+      return { valid: false, error: 'Title is required' };
+    }
+
+    if (!session.category) {
+      return { valid: false, error: 'Category is required' };
+    }
+
+    if (!session.duration || session.duration <= 0) {
+      return { valid: false, error: 'Duration must be greater than 0' };
+    }
+
+    if (session.scheduledFor) {
+      const date = new Date(session.scheduledFor);
+      if (isNaN(date.getTime())) {
+        return { valid: false, error: 'Invalid scheduledFor date' };
+      }
+    }
+
+    return { valid: true };
   }
 }

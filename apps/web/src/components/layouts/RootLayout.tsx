@@ -54,6 +54,16 @@ export default function RootLayout() {
             >
               Sessions
             </Link>
+            <Link
+              to="/statistics"
+              className={`no-underline transition-colors ${
+                isActive('/statistics')
+                  ? 'text-primary-600 dark:text-primary-400 font-semibold'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Statistics
+            </Link>
             <ThemeToggle />
           </div>
         </nav>

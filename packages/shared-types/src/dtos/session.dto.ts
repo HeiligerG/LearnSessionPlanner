@@ -105,3 +105,94 @@ export interface SessionStatsDto {
   completedDuration: number;
   completionRate: number;
 }
+
+/**
+ * Category statistics DTO
+ */
+export interface CategoryStatsDto {
+  category: SessionCategory;
+  totalSessions: number;
+  completedSessions: number;
+  totalDuration: number;
+  completedDuration: number;
+  completionRate: number;
+}
+
+/**
+ * Trend data point DTO
+ */
+export interface TrendDataPoint {
+  date: string; // YYYY-MM-DD format
+  planned: number;
+  completed: number;
+  inProgress: number;
+  missed: number;
+  cancelled: number;
+}
+
+/**
+ * Time distribution DTO
+ */
+export interface TimeDistributionDto {
+  totalPlannedHours: number;
+  totalCompletedHours: number;
+  averageSessionDuration: number;
+  longestSession: number;
+  shortestSession: number;
+  byDayOfWeek: Array<{ day: string; hours: number }>;
+}
+
+/**
+ * Productivity metrics DTO
+ */
+export interface ProductivityMetricsDto {
+  completionRate: number;
+  onTimeCompletionRate: number;
+  averageDelayDays: number;
+  mostProductiveCategory: SessionCategory;
+  mostProductiveTimeOfDay: string;
+  streakDays: number;
+}
+
+/**
+ * Detailed statistics DTO
+ */
+export interface DetailedStatsDto {
+  overview: SessionStatsDto;
+  byCategory: CategoryStatsDto[];
+  trends: TrendDataPoint[];
+  timeDistribution: TimeDistributionDto;
+  productivity: ProductivityMetricsDto;
+}
+
+/**
+ * Recurrence pattern for bulk session creation
+ */
+export interface RecurrencePattern {
+  frequency: 'daily' | 'weekly' | 'monthly';
+  interval: number;
+  endType: 'date' | 'count' | 'never';
+  endDate?: string;
+  endCount?: number;
+  daysOfWeek?: number[];
+  dayOfMonth?: number;
+}
+
+/**
+ * Bulk create session DTO
+ */
+export interface BulkCreateSessionDto {
+  sessions: CreateSessionDto[];
+  recurrence?: RecurrencePattern;
+  applyRecurrenceToAll?: boolean;
+}
+
+/**
+ * Bulk create result DTO
+ */
+export interface BulkCreateResult {
+  successful: SessionResponse[];
+  failed: Array<{ session: CreateSessionDto; error: string }>;
+  totalCreated: number;
+  totalFailed: number;
+}

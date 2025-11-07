@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import type {
@@ -19,6 +20,11 @@ import type {
   ApiResponse,
   PaginationQuery,
   CalendarSessionDto,
+  DetailedStatsDto,
+  CategoryStatsDto,
+  TrendDataPoint,
+  BulkCreateSessionDto,
+  BulkCreateResult,
 } from '@repo/shared-types';
 
 @Controller('sessions')
@@ -37,6 +43,32 @@ export class SessionsController {
       success: true,
       message: 'Session created successfully',
       data: session,
+    };
+  }
+
+  @Post('bulk')
+  @HttpCode(HttpStatus.CREATED)
+  async bulkCreate(
+    @Body() dto: BulkCreateSessionDto,
+  ): Promise<ApiResponse<BulkCreateResult>> {
+    // TODO: Get userId from authenticated user
+    const userId = 'test-user-id';
+
+    // Validate input
+    if (!dto.sessions || dto.sessions.length === 0) {
+      throw new BadRequestException('At least one session is required');
+    }
+
+    if (dto.sessions.length > 500) {
+      throw new BadRequestException('Cannot create more than 500 sessions at once');
+    }
+
+    const result = await this.sessionsService.bulkCreate(userId, dto);
+
+    return {
+      success: true,
+      message: `Bulk create completed: ${result.totalCreated} created, ${result.totalFailed} failed`,
+      data: result,
     };
   }
 
@@ -93,6 +125,106 @@ export class SessionsController {
     };
   }
 
+  @Get('stats/detailed')
+  async getDetailedStats(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<ApiResponse<DetailedStatsDto>> {
+    // TODO: Get userId from authenticated user
+    const userId = 'test-user-id';
+
+    const parsedStartDate = startDate ? new Date(startDate) : undefined;
+    const parsedEndDate = endDate ? new Date(endDate) : undefined;
+
+    // Validate parsed dates
+    if (parsedStartDate && isNaN(parsedStartDate.getTime())) {
+      throw new BadRequestException('Invalid startDate');
+    }
+    if (parsedEndDate && isNaN(parsedEndDate.getTime())) {
+      throw new BadRequestException('Invalid endDate');
+    }
+
+    const stats = await this.sessionsService.getDetailedStats(
+      userId,
+      parsedStartDate,
+      parsedEndDate,
+    );
+
+    return {
+      success: true,
+      message: 'Detailed statistics retrieved successfully',
+      data: stats,
+    };
+  }
+
+  @Get('stats/category')
+  async getCategoryStats(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<ApiResponse<CategoryStatsDto[]>> {
+    // TODO: Get userId from authenticated user
+    const userId = 'test-user-id';
+
+    const parsedStartDate = startDate ? new Date(startDate) : undefined;
+    const parsedEndDate = endDate ? new Date(endDate) : undefined;
+
+    // Validate parsed dates
+    if (parsedStartDate && isNaN(parsedStartDate.getTime())) {
+      throw new BadRequestException('Invalid startDate');
+    }
+    if (parsedEndDate && isNaN(parsedEndDate.getTime())) {
+      throw new BadRequestException('Invalid endDate');
+    }
+
+    const stats = await this.sessionsService.getCategoryStats(
+      userId,
+      parsedStartDate,
+      parsedEndDate,
+    );
+
+    return {
+      success: true,
+      message: 'Category statistics retrieved successfully',
+      data: stats,
+    };
+  }
+
+  @Get('stats/trends')
+  async getTrendData(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<ApiResponse<TrendDataPoint[]>> {
+    // TODO: Get userId from authenticated user
+    const userId = 'test-user-id';
+
+    if (!startDate || !endDate) {
+      throw new BadRequestException('Both startDate and endDate are required');
+    }
+
+    const parsedStartDate = new Date(startDate);
+    const parsedEndDate = new Date(endDate);
+
+    // Validate parsed dates
+    if (isNaN(parsedStartDate.getTime())) {
+      throw new BadRequestException('Invalid startDate');
+    }
+    if (isNaN(parsedEndDate.getTime())) {
+      throw new BadRequestException('Invalid endDate');
+    }
+
+    const trends = await this.sessionsService.getTrendData(
+      userId,
+      parsedStartDate,
+      parsedEndDate,
+    );
+
+    return {
+      success: true,
+      message: 'Trend data retrieved successfully',
+      data: trends,
+    };
+  }
+
   @Get('stats')
   async getStats(
     @Query('startDate') startDate?: string,
@@ -103,6 +235,14 @@ export class SessionsController {
 
     const parsedStartDate = startDate ? new Date(startDate) : undefined;
     const parsedEndDate = endDate ? new Date(endDate) : undefined;
+
+    // Validate parsed dates
+    if (parsedStartDate && isNaN(parsedStartDate.getTime())) {
+      throw new BadRequestException('Invalid startDate');
+    }
+    if (parsedEndDate && isNaN(parsedEndDate.getTime())) {
+      throw new BadRequestException('Invalid endDate');
+    }
 
     const stats = await this.sessionsService.getStats(
       userId,
