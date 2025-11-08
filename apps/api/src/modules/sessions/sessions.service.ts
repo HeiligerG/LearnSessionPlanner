@@ -941,4 +941,24 @@ export class SessionsService {
 
     return { valid: true };
   }
+
+  /**
+   * Search sessions by query string (title, description, tags)
+   */
+  async search(userId: string, query: string): Promise<SessionResponse[]> {
+    const sessions = await this.prisma.session.findMany({
+      where: {
+        userId,
+        OR: [
+          { title: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { tags: { has: query } },
+        ],
+      },
+      orderBy: { scheduledFor: 'desc' },
+      take: 50, // Limit search results
+    });
+
+    return this.transformSessions(sessions);
+  }
 }

@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSessions } from '@/hooks/useSessions';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SessionCard } from '@/components/sessions/SessionCard';
 import { SessionForm } from '@/components/sessions/SessionForm';
 import { CalendarView } from '@/components/calendar/CalendarView';
+import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp';
+import { SkeletonLoader } from '@/components/common/SkeletonLoader';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { SessionResponse, SessionStatsDto } from '@repo/shared-types';
 import { api } from '@/services/api';
 
@@ -20,8 +23,52 @@ export default function DashboardPage() {
 
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [showSessionForm, setShowSessionForm] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
   const [stats, setStats] = useState<SessionStatsDto | null>(null);
+
+  // Keyboard shortcuts
+  const shortcuts = useMemo(() => [
+    {
+      key: 'n',
+      description: 'Create new session',
+      action: () => {
+        setSelectedSession(null);
+        setShowSessionForm(true);
+      },
+    },
+    {
+      key: 'c',
+      description: 'Switch to calendar view',
+      action: () => setView('calendar'),
+    },
+    {
+      key: 'l',
+      description: 'Switch to list view',
+      action: () => setView('list'),
+    },
+    {
+      key: 'r',
+      description: 'Refresh data',
+      action: () => refetch(),
+    },
+    {
+      key: '?',
+      shiftKey: true,
+      description: 'Show keyboard shortcuts',
+      action: () => setIsHelpOpen(prev => !prev),
+    },
+    {
+      key: 'Escape',
+      description: 'Close modals',
+      action: () => {
+        setShowSessionForm(false);
+        setIsHelpOpen(false);
+      },
+    },
+  ], [refetch]);
+
+  useKeyboardShortcuts({ shortcuts });
 
   useEffect(() => {
     // Fetch statistics
@@ -73,7 +120,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Learning Dashboard
@@ -87,7 +134,7 @@ export default function DashboardPage() {
             setSelectedSession(null);
             setShowSessionForm(true);
           }}
-          className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm"
+          className="w-full sm:w-auto px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm min-h-[44px]"
         >
           + New Session
         </button>
@@ -167,10 +214,13 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       {loading && !sessions.length ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading sessions...</p>
-        </div>
+        view === 'calendar' ? (
+          <SkeletonLoader variant="calendar" />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <SkeletonLoader variant="card" count={6} />
+          </div>
+        )
       ) : error ? (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <p className="text-red-800 dark:text-red-200">Error loading sessions: {error.message}</p>
@@ -194,7 +244,7 @@ export default function DashboardPage() {
           </p>
           <button
             onClick={() => setShowSessionForm(true)}
-            className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors"
+            className="w-full sm:w-auto px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors min-h-[44px]"
           >
             Create First Session
           </button>
@@ -239,6 +289,13 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp
+        shortcuts={shortcuts}
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
     </div>
   );
 }

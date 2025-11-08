@@ -1,7 +1,7 @@
 import type { SessionCategory } from '../enums/session-category.enum';
 import type { SessionStatus } from '../enums/session-status.enum';
 import type { SessionPriority } from '../enums/session-priority.enum';
-import type { PaginatedResponse, ISODateString } from './common.dto';
+import type { PaginatedResponse, ISODateString, PaginationQuery } from './common.dto';
 
 /**
  * Create session DTO
@@ -196,3 +196,71 @@ export interface BulkCreateResult {
   totalCreated: number;
   totalFailed: number;
 }
+
+/**
+ * Create template DTO
+ */
+export interface CreateTemplateDto {
+  name: string;
+  title: string;
+  description?: string;
+  category: SessionCategory;
+  priority?: SessionPriority;
+  duration: number;
+  color?: string;
+  tags?: string[];
+  notes?: string;
+}
+
+/**
+ * Update template DTO
+ */
+export interface UpdateTemplateDto {
+  name?: string;
+  title?: string;
+  description?: string;
+  category?: SessionCategory;
+  priority?: SessionPriority;
+  duration?: number;
+  color?: string;
+  tags?: string[];
+  notes?: string;
+}
+
+/**
+ * Template response DTO
+ */
+export interface TemplateResponse {
+  id: string;
+  name: string;
+  title: string;
+  description: string | null;
+  category: SessionCategory;
+  priority: SessionPriority;
+  duration: number;
+  color: string | null;
+  tags: string[];
+  notes: string | null;
+  userId: string;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
+}
+
+/**
+ * Template filters for querying
+ */
+export interface TemplateFilters {
+  category?: SessionCategory;
+  search?: string;
+  tags?: string[];
+}
+
+/**
+ * Template query combining filters and pagination
+ */
+export interface TemplateQuery extends TemplateFilters, PaginationQuery {}
+
+/**
+ * Templates list response (paginated)
+ */
+export type TemplatesListResponse = PaginatedResponse<TemplateResponse>;

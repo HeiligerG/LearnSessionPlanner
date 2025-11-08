@@ -3,18 +3,74 @@ import { CalendarView } from '@/components/calendar/CalendarView';
 import { WeekView } from '@/components/calendar/WeekView';
 import { DayView } from '@/components/calendar/DayView';
 import { SessionForm } from '@/components/sessions/SessionForm';
-import BulkSessionForm from '@/components/sessions/BulkSessionForm';
-import { useState } from 'react';
-import type { SessionResponse, BulkCreateSessionDto, BulkCreateResult } from '@repo/shared-types';
+import { BulkSessionForm } from '@/components/sessions/BulkSessionForm';
+import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp';
+import { SkeletonLoader } from '@/components/common/SkeletonLoader';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useState, useMemo } from 'react';
+import type { SessionResponse, BulkCreateSessionDto, BulkCreateResult, TemplateResponse } from '@repo/shared-types';
 
 export default function CalendarPage() {
   const { sessions, loading, createSession, bulkCreateSessions, updateSession } = useSessions();
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [showBulkForm, setShowBulkForm] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [bulkResult, setBulkResult] = useState<BulkCreateResult | null>(null);
   const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
+
+  // Keyboard shortcuts
+  const shortcuts = useMemo(() => [
+    {
+      key: 'n',
+      description: 'Create new session',
+      action: () => {
+        setSelectedSession(null);
+        setShowSessionForm(true);
+      },
+    },
+    {
+      key: 'b',
+      description: 'Bulk create sessions',
+      action: () => setShowBulkForm(true),
+    },
+    {
+      key: 'd',
+      description: 'Switch to day view',
+      action: () => {
+        setViewMode('day');
+        setSelectedDate(new Date());
+      },
+    },
+    {
+      key: 'w',
+      description: 'Switch to week view',
+      action: () => setViewMode('week'),
+    },
+    {
+      key: 'm',
+      description: 'Switch to month view',
+      action: () => setViewMode('month'),
+    },
+    {
+      key: '?',
+      shiftKey: true,
+      description: 'Show keyboard shortcuts',
+      action: () => setIsHelpOpen(prev => !prev),
+    },
+    {
+      key: 'Escape',
+      description: 'Close modals',
+      action: () => {
+        setShowSessionForm(false);
+        setShowBulkForm(false);
+        setIsHelpOpen(false);
+      },
+    },
+  ], []);
+
+  useKeyboardShortcuts({ shortcuts });
 
   const handleSessionClick = (session: SessionResponse) => {
     setSelectedSession(session);
@@ -62,13 +118,17 @@ export default function CalendarPage() {
     }
   };
 
+  const handleTemplateSaved = (template: TemplateResponse) => {
+    console.log('Template saved:', template);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
           Calendar
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
           {/* View Toggle Buttons */}
           <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg p-1 shadow-sm border border-gray-200 dark:border-gray-700">
             <button
@@ -107,7 +167,7 @@ export default function CalendarPage() {
           </div>
           <button
             onClick={() => setShowBulkForm(true)}
-            className="px-6 py-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm"
+            className="w-full sm:w-auto px-6 py-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm min-h-[44px]"
           >
             Bulk Create
           </button>
@@ -117,7 +177,7 @@ export default function CalendarPage() {
               // Keep current selectedDate instead of resetting to today
               setShowSessionForm(true);
             }}
-            className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm"
+            className="w-full sm:w-auto px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm min-h-[44px]"
           >
             + New Session
           </button>
@@ -154,9 +214,7 @@ export default function CalendarPage() {
       )}
 
       {loading && !sessions.length ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-        </div>
+        <SkeletonLoader variant="calendar" />
       ) : (
         <>
           {viewMode === 'day' && (
@@ -203,6 +261,7 @@ export default function CalendarPage() {
                 }}
                 loading={loading}
                 initialDate={selectedDate}
+                onTemplateSaved={handleTemplateSaved}
               />
             </div>
           </div>
@@ -243,6 +302,13 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp
+        shortcuts={shortcuts}
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
     </div>
   );
 }

@@ -22,6 +22,11 @@ import type {
   TrendDataPoint,
   BulkCreateSessionDto,
   BulkCreateResult,
+  CreateTemplateDto,
+  UpdateTemplateDto,
+  TemplateResponse,
+  TemplatesListResponse,
+  TemplateFilters,
 } from '@repo/shared-types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -266,6 +271,72 @@ export const api = {
 
       const query = params.toString()
       return apiClient.get<ApiResponse<TrendDataPoint[]>>(`/sessions/stats/trends?${query}`)
+    },
+
+    /**
+     * Search sessions by query string
+     */
+    search(query: string): Promise<ApiResponse<SessionResponse[]>> {
+      const params = new URLSearchParams()
+      params.append('q', query)
+
+      return apiClient.get<ApiResponse<SessionResponse[]>>(`/sessions/search?${params.toString()}`)
+    },
+  },
+
+  // Template endpoints
+  templates: {
+    /**
+     * Get all templates with optional filters
+     */
+    getAll(filters?: TemplateFilters): Promise<ApiResponse<TemplatesListResponse>> {
+      const params = new URLSearchParams()
+      if (filters?.category) params.append('category', filters.category)
+      if (filters?.search) params.append('search', filters.search)
+      if (filters?.tags) {
+        filters.tags.forEach(tag => params.append('tags', tag))
+      }
+
+      const query = params.toString() ? `?${params.toString()}` : ''
+      return apiClient.get<ApiResponse<TemplatesListResponse>>(`/templates${query}`)
+    },
+
+    /**
+     * Get a single template by ID
+     */
+    getById(id: string): Promise<ApiResponse<TemplateResponse>> {
+      return apiClient.get<ApiResponse<TemplateResponse>>(`/templates/${id}`)
+    },
+
+    /**
+     * Create a new template
+     */
+    create(dto: CreateTemplateDto): Promise<ApiResponse<TemplateResponse>> {
+      return apiClient.post<ApiResponse<TemplateResponse>>('/templates', dto)
+    },
+
+    /**
+     * Update an existing template
+     */
+    update(id: string, dto: UpdateTemplateDto): Promise<ApiResponse<TemplateResponse>> {
+      return apiClient.patch<ApiResponse<TemplateResponse>>(`/templates/${id}`, dto)
+    },
+
+    /**
+     * Delete a template
+     */
+    delete(id: string): Promise<ApiResponse<void>> {
+      return apiClient.delete<ApiResponse<void>>(`/templates/${id}`)
+    },
+
+    /**
+     * Search templates by name or title
+     */
+    search(query: string): Promise<ApiResponse<TemplateResponse[]>> {
+      const params = new URLSearchParams()
+      params.append('q', query)
+
+      return apiClient.get<ApiResponse<TemplateResponse[]>>(`/templates/search?${params.toString()}`)
     },
   },
 }

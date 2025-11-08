@@ -1,9 +1,14 @@
 import React, { useState, useMemo } from 'react'
-import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto, BulkCreateSessionDto, BulkCreateResult } from '@repo/shared-types'
+import { Plus, Upload, Search as SearchIcon } from 'lucide-react'
+import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto, BulkCreateSessionDto, BulkCreateResult, TemplateResponse } from '@repo/shared-types'
 import { useSessions } from '@/hooks/useSessions'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { SessionCard } from '@/components/sessions/SessionCard'
 import { SessionForm } from '@/components/sessions/SessionForm'
-import BulkSessionForm from '@/components/sessions/BulkSessionForm'
+import { BulkSessionForm } from '@/components/sessions/BulkSessionForm'
+import { SessionSearchModal } from '@/components/sessions/SessionSearchModal'
+import { SkeletonLoader } from '@/components/common/SkeletonLoader'
+import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp'
 import { filterSessions, sortSessions, groupSessionsByDate } from '@/utils/sessionUtils'
 
 type SortOption = 'date' | 'priority' | 'status' | 'category'
@@ -26,11 +31,56 @@ const SessionsPage: React.FC = () => {
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isBulkFormOpen, setIsBulkFormOpen] = useState(false)
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [bulkResult, setBulkResult] = useState<BulkCreateResult | null>(null)
   const [selectedSession, setSelectedSession] = useState<SessionResponse | undefined>()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('date')
   const [groupBy, setGroupBy] = useState<GroupOption>('date')
+
+  // Keyboard shortcuts
+  const shortcuts = useMemo(() => [
+    {
+      key: 'n',
+      description: 'Create new session',
+      action: () => setIsFormOpen(true),
+    },
+    {
+      key: 'b',
+      description: 'Bulk create sessions',
+      action: () => setIsBulkFormOpen(true),
+    },
+    {
+      key: 'k',
+      ctrlKey: true,
+      description: 'Quick search',
+      action: () => setIsSearchModalOpen(true),
+    },
+    {
+      key: 'r',
+      description: 'Refresh sessions',
+      action: () => refetch(),
+    },
+    {
+      key: '?',
+      shiftKey: true,
+      description: 'Show keyboard shortcuts',
+      action: () => setIsHelpOpen(prev => !prev),
+    },
+    {
+      key: 'Escape',
+      description: 'Close modals',
+      action: () => {
+        setIsFormOpen(false)
+        setIsBulkFormOpen(false)
+        setIsSearchModalOpen(false)
+        setIsHelpOpen(false)
+      },
+    },
+  ], [refetch])
+
+  useKeyboardShortcuts({ shortcuts })
 
   // Apply filters, search, and sort
   const processedSessions = useMemo(() => {
@@ -112,6 +162,16 @@ const SessionsPage: React.FC = () => {
     }
   }
 
+  const handleTemplateSaved = (template: TemplateResponse) => {
+    console.log('Template saved:', template)
+  }
+
+  const handleSelectSearchResult = (session: SessionResponse) => {
+    // Open edit mode for the selected session
+    setSelectedSession(session)
+    setIsFormOpen(true)
+  }
+
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -132,25 +192,37 @@ const SessionsPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Sessions</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Manage and track your learning sessions
             </p>
           </div>
-          <div className="flex gap-3 mt-4 sm:mt-0">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => setIsSearchModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-all hover:scale-105 shadow-md"
+            >
+              <SearchIcon className="h-5 w-5" />
+              <span className="hidden sm:inline">Quick Search</span>
+              <kbd className="hidden md:inline px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-600 rounded border border-gray-300 dark:border-gray-500">
+                Ctrl+K
+              </kbd>
+            </button>
             <button
               onClick={() => setIsBulkFormOpen(true)}
-              className="px-6 py-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-md"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-all hover:scale-105 shadow-md"
             >
-              Bulk Create
+              <Upload className="h-5 w-5" />
+              <span>Bulk Create</span>
             </button>
             <button
               onClick={() => setIsFormOpen(true)}
-              className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 transition-colors shadow-md"
+              className="flex items-center justify-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 transition-all hover:scale-105 shadow-md hover:shadow-lg"
             >
-              New Session
+              <Plus className="h-5 w-5" />
+              <span>New Session</span>
             </button>
           </div>
         </div>
@@ -314,8 +386,8 @@ const SessionsPage: React.FC = () => {
 
         {/* Sessions List */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-gray-500 dark:text-gray-400">Loading sessions...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <SkeletonLoader variant="card" count={6} />
           </div>
         ) : processedSessions.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-12 text-center">
@@ -358,23 +430,28 @@ const SessionsPage: React.FC = () => {
               return (
                 <div key={groupName}>
                   {groupBy !== 'none' && (
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 animate-fade-in">
                       {groupName}
                       <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
                         ({groupSessions.length})
                       </span>
                     </h2>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {groupSessions
                       .filter((s): s is SessionResponse => s != null && !!s.category && !!s.status)
-                      .map((session) => (
-                        <SessionCard
+                      .map((session, index) => (
+                        <div
                           key={session.id}
-                          session={session}
-                          onEdit={handleEditClick}
-                          onDelete={handleDeleteSession}
-                        />
+                          className="animate-fade-in"
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          <SessionCard
+                            session={session}
+                            onEdit={handleEditClick}
+                            onDelete={handleDeleteSession}
+                          />
+                        </div>
                       ))}
                   </div>
                 </div>
@@ -386,8 +463,8 @@ const SessionsPage: React.FC = () => {
 
       {/* Session Form Modal */}
       {isFormOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-slide-up">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -395,7 +472,7 @@ const SessionsPage: React.FC = () => {
                 </h2>
                 <button
                   onClick={handleCloseForm}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all hover:scale-110"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -409,6 +486,7 @@ const SessionsPage: React.FC = () => {
                   : (data) => handleCreateSession(data as CreateSessionDto)
                 }
                 onCancel={handleCloseForm}
+                onTemplateSaved={handleTemplateSaved}
               />
             </div>
           </div>
@@ -417,8 +495,8 @@ const SessionsPage: React.FC = () => {
 
       {/* Bulk Session Form Modal */}
       {isBulkFormOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-slide-up">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -426,7 +504,7 @@ const SessionsPage: React.FC = () => {
                 </h2>
                 <button
                   onClick={() => setIsBulkFormOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all hover:scale-110"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -442,6 +520,20 @@ const SessionsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Search Modal */}
+      <SessionSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        onSelectSession={handleSelectSearchResult}
+      />
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp
+        shortcuts={shortcuts}
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
     </div>
   )
 }

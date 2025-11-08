@@ -257,6 +257,28 @@ export class SessionsController {
     };
   }
 
+  @Get('search')
+  async search(@Query('q') query: string): Promise<ApiResponse<any[]>> {
+    // TODO: Get userId from authenticated user
+    const userId = 'test-user-id';
+
+    if (!query || query.trim().length === 0) {
+      return {
+        success: true,
+        message: 'Search query is empty',
+        data: [],
+      };
+    }
+
+    const sessions = await this.sessionsService.search(userId, query.trim());
+
+    return {
+      success: true,
+      message: 'Search completed successfully',
+      data: sessions,
+    };
+  }
+
   @Get(':id')
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
