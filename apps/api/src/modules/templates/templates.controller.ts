@@ -12,6 +12,7 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { TemplatesService } from './templates.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type {
   CreateTemplateDto,
   UpdateTemplateDto,
@@ -28,9 +29,9 @@ export class TemplatesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(
+    @CurrentUser('sub') userId: string,
     @Body() dto: CreateTemplateDto,
   ): Promise<ApiResponse<TemplateResponse>> {
-    const userId = 'test-user-id'; // TODO: Get from authenticated user
     const template = await this.templatesService.create(userId, dto);
 
     return {
@@ -42,10 +43,9 @@ export class TemplatesController {
 
   @Get()
   async findAll(
+    @CurrentUser('sub') userId: string,
     @Query() query: TemplateQuery,
   ): Promise<ApiResponse<TemplatesListResponse>> {
-    const userId = 'test-user-id'; // TODO: Get from authenticated user
-
     // Destructure pagination and filter keys
     const { page, limit, sortBy, sortOrder, category, search, tags } = query;
 
@@ -74,9 +74,9 @@ export class TemplatesController {
 
   @Get('search')
   async search(
+    @CurrentUser('sub') userId: string,
     @Query('q') query: string,
   ): Promise<ApiResponse<TemplateResponse[]>> {
-    const userId = 'test-user-id'; // TODO: Get from authenticated user
     const templates = await this.templatesService.search(userId, query);
 
     return {
@@ -88,9 +88,9 @@ export class TemplatesController {
 
   @Get(':id')
   async findOne(
+    @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ApiResponse<TemplateResponse>> {
-    const userId = 'test-user-id'; // TODO: Get from authenticated user
     const template = await this.templatesService.findById(id, userId);
 
     return {
@@ -102,10 +102,10 @@ export class TemplatesController {
 
   @Patch(':id')
   async update(
+    @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTemplateDto,
   ): Promise<ApiResponse<TemplateResponse>> {
-    const userId = 'test-user-id'; // TODO: Get from authenticated user
     const template = await this.templatesService.update(id, userId, dto);
 
     return {
@@ -117,8 +117,10 @@ export class TemplatesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    const userId = 'test-user-id'; // TODO: Get from authenticated user
+  async delete(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
     await this.templatesService.delete(id, userId);
   }
 }

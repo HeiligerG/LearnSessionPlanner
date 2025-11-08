@@ -5,6 +5,8 @@ import { SESSION_CATEGORIES, SESSION_STATUSES, SESSION_PRIORITIES } from '@repo/
 import { TemplateModal } from './TemplateModal';
 import { SessionSearchModal } from './SessionSearchModal';
 import { Tooltip } from '@/components/common/Tooltip';
+import { Button } from '@/components/common/Button';
+import { useToast } from '@/contexts/ToastContext';
 import { api } from '@/services/api';
 import { validateSessionForm, validation } from '@/utils/validation';
 
@@ -30,6 +32,7 @@ function formatDateToLocalInput(date: Date): string {
 }
 
 export function SessionForm({ session, onSubmit, onCancel, loading, initialDate, onTemplateSaved, enableTemplates = true, seedData }: SessionFormProps) {
+  const toast = useToast();
   const [formData, setFormData] = useState<{
     title: string;
     description: string;
@@ -199,7 +202,7 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
   const handleSaveAsTemplate = async () => {
     const nameValidation = validation.templateName(templateName);
     if (!nameValidation.isValid) {
-      alert(nameValidation.error || 'Invalid template name');
+      toast.error(nameValidation.error || 'Invalid template name');
       return;
     }
 
@@ -224,10 +227,10 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
       }
 
       setTemplateName('');
-      alert('Template saved successfully!');
+      toast.success('Template saved successfully!');
     } catch (error) {
       console.error('Error saving template:', error);
-      alert('Failed to save template. Please try again.');
+      toast.error('Failed to save template. Please try again.');
     } finally {
       setIsSavingTemplate(false);
     }
@@ -256,22 +259,24 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
         {enableTemplates && !session && (
           <div className="flex flex-col gap-2 mb-4">
             <div className="flex flex-col sm:flex-row gap-2">
-              <button
+              <Button
                 type="button"
                 onClick={() => setIsTemplateModalOpen(true)}
-                className="flex items-center justify-center gap-2 px-4 py-2 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors w-full sm:w-auto min-h-[44px]"
+                variant="secondary"
+                icon={<FileText className="h-4 w-4" />}
+                className="w-full sm:w-auto"
               >
-                <FileText className="h-4 w-4" />
                 Load Template
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => setIsSessionSearchModalOpen(true)}
-                className="flex items-center justify-center gap-2 px-4 py-2 text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors w-full sm:w-auto min-h-[44px]"
+                variant="secondary"
+                icon={<Search className="h-4 w-4" />}
+                className="w-full sm:w-auto"
               >
-                <Search className="h-4 w-4" />
                 Search Previous Sessions
-              </button>
+              </Button>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
@@ -281,15 +286,17 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
                 placeholder="Template name..."
                 className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white min-h-[44px]"
               />
-              <button
+              <Button
                 type="button"
                 onClick={handleSaveAsTemplate}
                 disabled={isSavingTemplate || !formData.title}
-                className="flex items-center justify-center gap-2 px-4 py-2 text-sm bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors disabled:opacity-50 w-full sm:w-auto min-h-[44px]"
+                variant="success"
+                icon={<Save className="h-4 w-4" />}
+                loading={isSavingTemplate}
+                className="w-full sm:w-auto"
               >
-                <Save className="h-4 w-4" />
-                {isSavingTemplate ? 'Saving...' : 'Save as Template'}
-              </button>
+                Save as Template
+              </Button>
             </div>
           </div>
         )}
@@ -525,21 +532,24 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
       </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4">
-          <button
+          <Button
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="w-full sm:w-auto px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+            variant="ghost"
+            className="w-full sm:w-auto"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full sm:w-auto px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg min-h-[44px]"
+            variant="primary"
+            loading={loading}
+            className="w-full sm:w-auto"
           >
-            {loading ? 'Saving...' : session ? 'Update Session' : 'Create Session'}
-          </button>
+            {session ? 'Update Session' : 'Create Session'}
+          </Button>
         </div>
       </form>
 

@@ -23,15 +23,20 @@ export interface LoginDto {
 export interface AuthResponse {
   user: UserResponse;
   accessToken: string;
-  refreshToken?: string;
-  expiresIn: number;
 }
 
 /**
- * Refresh token DTO
+ * Refresh response
  */
-export interface RefreshTokenDto {
-  refreshToken: string;
+export interface RefreshResponse {
+  accessToken: string;
+}
+
+/**
+ * CSRF token response
+ */
+export interface CsrfTokenResponse {
+  csrfToken: string;
 }
 
 /**

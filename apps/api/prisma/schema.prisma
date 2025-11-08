@@ -33,14 +33,15 @@ enum SessionCategory {
 }
 
 model User {
-  id        String            @id @default(uuid())
-  email     String            @unique
-  name      String?
-  password  String
-  sessions  Session[]
-  templates SessionTemplate[]
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id            String            @id @default(uuid())
+  email         String            @unique
+  name          String?
+  password      String
+  sessions      Session[]
+  templates     SessionTemplate[]
+  refreshTokens RefreshToken[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@map("users")
 }
@@ -108,4 +109,24 @@ model SessionTemplate {
   @@index([userId])
   @@index([name])
   @@map("session_templates")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @map("token_hash")
+  familyId  String   @map("family_id")
+  jti       String   @unique
+  expiresAt DateTime @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  userAgent String?  @map("user_agent")
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }

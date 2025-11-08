@@ -2,17 +2,26 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { useSessions } from '@/hooks/useSessions';
+import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
 import type { SessionStatsDto, SessionResponse } from '@repo/shared-types';
 import { formatDate, formatTime } from '@/utils/dateUtils';
 import { featureIcons, actionIcons, statsIcons, getCategoryIconComponent } from '@/utils/iconUtils';
 
 export default function LandingPage() {
+  const { isAuthenticated } = useAuth();
   const { sessions } = useSessions();
   const [stats, setStats] = useState<SessionStatsDto | null>(null);
   const [upcomingSessions, setUpcomingSessions] = useState<SessionResponse[]>([]);
 
   useEffect(() => {
+    // Only fetch statistics and sessions when authenticated
+    if (!isAuthenticated) {
+      setStats(null);
+      setUpcomingSessions([]);
+      return;
+    }
+
     // Fetch statistics
     api.sessions.getStats().then((response) => {
       if (response.data) {
@@ -26,7 +35,7 @@ export default function LandingPage() {
       .sort((a, b) => new Date(a.scheduledFor!).getTime() - new Date(b.scheduledFor!).getTime())
       .slice(0, 3);
     setUpcomingSessions(upcoming);
-  }, [sessions]);
+  }, [sessions, isAuthenticated]);
 
   const quickActions = [
     {

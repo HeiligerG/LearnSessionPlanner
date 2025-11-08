@@ -6,6 +6,7 @@ import {
   getSessionDuration
 } from '@/utils/sessionUtils';
 import { getCategoryIconComponent } from '@/utils/iconUtils';
+import { useToastConfirm } from '@/contexts/ToastContext';
 
 interface SessionCardProps {
   session: SessionResponse;
@@ -15,6 +16,8 @@ interface SessionCardProps {
 }
 
 export function SessionCard({ session, onEdit, onDelete, onClick }: SessionCardProps) {
+  const confirm = useToastConfirm();
+
   // Guard against undefined session
   if (!session) {
     return null;
@@ -102,9 +105,10 @@ export function SessionCard({ session, onEdit, onDelete, onClick }: SessionCardP
           )}
           {onDelete && (
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                if (confirm('Are you sure you want to delete this session?')) {
+                const confirmed = await confirm('Are you sure you want to delete this session?');
+                if (confirmed) {
                   onDelete(session.id);
                 }
               }}

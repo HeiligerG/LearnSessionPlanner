@@ -3,6 +3,9 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { PrismaService } from '@common/prisma/prisma.service';
+import helmet from 'helmet';
+import { doubleCsrf } from 'csrf-csrf';
+const cookieParser = require('cookie-parser');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,6 +15,41 @@ async function bootstrap() {
 
   // Get ConfigService
   const configService = app.get(ConfigService);
+
+  // Security: Helmet middleware for security headers
+  app.use(helmet());
+
+  // Cookie parser middleware
+  app.use(cookieParser());
+
+  // CSRF protection
+  const csrfSecret = configService.get<string>('CSRF_SECRET');
+  const { doubleCsrfProtection, generateToken } = doubleCsrf({
+    getSecret: () => csrfSecret || 'default-csrf-secret',
+    cookieName: 'x-csrf-token',
+    cookieOptions: {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+    },
+    size: 64,
+    ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
+    getTokenFromRequest: (req) => req.headers['x-csrf-token'] as string,
+  });
+
+  // Attach CSRF token generator to request
+  app.use((req: any, res: any, next: any) => {
+    req.csrfToken = () => generateToken(req, res);
+    next();
+  });
+
+  // Apply CSRF protection to all routes except auth routes
+  app.use((req: any, res: any, next: any) => {
+    if (req.path.startsWith('/api/auth/')) {
+      return next();
+    }
+    return doubleCsrfProtection(req, res, next);
+  });
 
   // Configure CORS
   const corsOrigin = configService.get<string>('CORS_ORIGIN');

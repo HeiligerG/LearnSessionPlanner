@@ -13,6 +13,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import type {
   CreateSessionDto,
   UpdateSessionDto,
@@ -33,10 +35,10 @@ export class SessionsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() dto: CreateSessionDto): Promise<ApiResponse<any>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id'; // Temporary hardcoded value
-
+  async create(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: CreateSessionDto,
+  ): Promise<ApiResponse<any>> {
     const session = await this.sessionsService.create(userId, dto);
 
     return {
@@ -49,11 +51,9 @@ export class SessionsController {
   @Post('bulk')
   @HttpCode(HttpStatus.CREATED)
   async bulkCreate(
+    @CurrentUser('sub') userId: string,
     @Body() dto: BulkCreateSessionDto,
   ): Promise<ApiResponse<BulkCreateResult>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     // Validate input
     if (!dto.sessions || dto.sessions.length === 0) {
       throw new BadRequestException('At least one session is required');
@@ -74,12 +74,10 @@ export class SessionsController {
 
   @Get()
   async findAll(
+    @CurrentUser('sub') userId: string,
     @Query() filters: SessionFilters,
     @Query() pagination: PaginationQuery,
   ): Promise<ApiResponse<any>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     const result = await this.sessionsService.findAll(
       userId,
       filters,
@@ -95,11 +93,9 @@ export class SessionsController {
 
   @Get('calendar')
   async getCalendarSessions(
+    @CurrentUser('sub') userId: string,
     @Query() dto: CalendarSessionDto,
   ): Promise<ApiResponse<any>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
 
@@ -127,12 +123,10 @@ export class SessionsController {
 
   @Get('stats/detailed')
   async getDetailedStats(
+    @CurrentUser('sub') userId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<ApiResponse<DetailedStatsDto>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     const parsedStartDate = startDate ? new Date(startDate) : undefined;
     const parsedEndDate = endDate ? new Date(endDate) : undefined;
 
@@ -159,12 +153,10 @@ export class SessionsController {
 
   @Get('stats/category')
   async getCategoryStats(
+    @CurrentUser('sub') userId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<ApiResponse<CategoryStatsDto[]>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     const parsedStartDate = startDate ? new Date(startDate) : undefined;
     const parsedEndDate = endDate ? new Date(endDate) : undefined;
 
@@ -191,12 +183,10 @@ export class SessionsController {
 
   @Get('stats/trends')
   async getTrendData(
+    @CurrentUser('sub') userId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<ApiResponse<TrendDataPoint[]>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     if (!startDate || !endDate) {
       throw new BadRequestException('Both startDate and endDate are required');
     }
@@ -227,12 +217,10 @@ export class SessionsController {
 
   @Get('stats')
   async getStats(
+    @CurrentUser('sub') userId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<ApiResponse<any>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     const parsedStartDate = startDate ? new Date(startDate) : undefined;
     const parsedEndDate = endDate ? new Date(endDate) : undefined;
 
@@ -258,10 +246,10 @@ export class SessionsController {
   }
 
   @Get('search')
-  async search(@Query('q') query: string): Promise<ApiResponse<any[]>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
+  async search(
+    @CurrentUser('sub') userId: string,
+    @Query('q') query: string,
+  ): Promise<ApiResponse<any[]>> {
     if (!query || query.trim().length === 0) {
       return {
         success: true,
@@ -281,11 +269,9 @@ export class SessionsController {
 
   @Get(':id')
   async findOne(
+    @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ApiResponse<any>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     const session = await this.sessionsService.findById(id, userId);
 
     return {
@@ -297,12 +283,10 @@ export class SessionsController {
 
   @Patch(':id')
   async update(
+    @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSessionDto,
   ): Promise<ApiResponse<any>> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
     const session = await this.sessionsService.update(id, userId, dto);
 
     return {
@@ -314,13 +298,14 @@ export class SessionsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    // TODO: Get userId from authenticated user
-    const userId = 'test-user-id';
-
+  async delete(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
     await this.sessionsService.delete(id, userId);
   }
 
+  @Public()
   @Post('auto-update-missed')
   @HttpCode(HttpStatus.OK)
   async autoUpdateMissed(): Promise<ApiResponse<any>> {

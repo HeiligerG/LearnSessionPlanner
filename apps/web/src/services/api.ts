@@ -10,6 +10,8 @@ import type {
   LoginDto,
   RegisterDto,
   AuthResponse,
+  RefreshResponse,
+  CsrfTokenResponse,
   CreateSessionDto,
   UpdateSessionDto,
   SessionResponse,
@@ -30,6 +32,62 @@ import type {
 } from '@repo/shared-types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+
+// In-memory access token storage
+let accessToken: string | null = null
+
+/**
+ * Set the access token for authenticated requests
+ */
+export function setAccessToken(token: string | null) {
+  accessToken = token
+}
+
+/**
+ * Get the current access token
+ */
+export function getAccessToken(): string | null {
+  return accessToken
+}
+
+// CSRF token storage
+let csrfToken: string | null = null
+let csrfTokenPromise: Promise<void> | null = null
+
+/**
+ * Ensure CSRF token is fetched
+ */
+async function ensureCsrfToken() {
+  if (csrfToken) return
+
+  // If already fetching, wait for that request
+  if (csrfTokenPromise) {
+    await csrfTokenPromise
+    return
+  }
+
+  // Fetch CSRF token
+  csrfTokenPromise = (async () => {
+    try {
+      const response = await fetch(`${API_URL}/auth/csrf-token`, {
+        credentials: 'include',
+      })
+      const data = await response.json()
+      if (data.success && data.data?.csrfToken) {
+        csrfToken = data.data.csrfToken
+      }
+    } catch (error) {
+      console.error('Failed to fetch CSRF token:', error)
+    } finally {
+      csrfTokenPromise = null
+    }
+  })()
+
+  await csrfTokenPromise
+}
+
+// Refresh lock to prevent parallel refresh storms
+let refreshInFlight = false
 
 /**
  * Custom error class for API errors
@@ -54,16 +112,72 @@ async function request<T>(
 ): Promise<T> {
   const url = `${API_URL}${endpoint}`
 
+  // Ensure CSRF token for non-GET requests
+  const method = options.method?.toUpperCase() || 'GET'
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    await ensureCsrfToken()
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+
+  // Add Authorization header if access token exists
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`
+  }
+
+  // Add CSRF token for non-GET requests
+  if (csrfToken && method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    headers['X-CSRF-Token'] = csrfToken
+  }
+
   const config: RequestInit = {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
+    credentials: 'include', // Include cookies for refresh token
   }
 
   try {
     const response = await fetch(url, config)
+
+    // Handle 401 Unauthorized - try to refresh token and retry
+    if (response.status === 401 && !refreshInFlight && !endpoint.includes('/auth/refresh')) {
+      refreshInFlight = true
+
+      try {
+        // Try to refresh the token
+        const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        })
+
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json()
+          if (refreshData.success && refreshData.data?.accessToken) {
+            // Update access token
+            setAccessToken(refreshData.data.accessToken)
+
+            // Retry the original request with new token
+            const retryHeaders = { ...headers, Authorization: `Bearer ${refreshData.data.accessToken}` }
+            const retryResponse = await fetch(url, { ...config, headers: retryHeaders })
+
+            if (retryResponse.ok) {
+              if (retryResponse.status === 204) {
+                return { success: true } as T
+              }
+              return await retryResponse.json()
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError)
+      } finally {
+        refreshInFlight = false
+      }
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -135,22 +249,66 @@ export const api = {
     /**
      * User login
      */
-    login(dto: LoginDto): Promise<ApiResponse<AuthResponse>> {
-      return apiClient.post<ApiResponse<AuthResponse>>('/auth/login', dto)
+    async login(dto: LoginDto): Promise<ApiResponse<AuthResponse>> {
+      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', dto)
+      if (response.data?.accessToken) {
+        setAccessToken(response.data.accessToken)
+      }
+      return response
     },
 
     /**
      * User registration
      */
-    register(dto: RegisterDto): Promise<ApiResponse<AuthResponse>> {
-      return apiClient.post<ApiResponse<AuthResponse>>('/auth/register', dto)
+    async register(dto: RegisterDto): Promise<ApiResponse<AuthResponse>> {
+      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/register', dto)
+      if (response.data?.accessToken) {
+        setAccessToken(response.data.accessToken)
+      }
+      return response
+    },
+
+    /**
+     * Refresh access token
+     */
+    async refresh(): Promise<ApiResponse<RefreshResponse>> {
+      const response = await apiClient.post<ApiResponse<RefreshResponse>>('/auth/refresh')
+      if (response.data?.accessToken) {
+        setAccessToken(response.data.accessToken)
+      }
+      return response
+    },
+
+    /**
+     * Get current user profile
+     */
+    getProfile(): Promise<ApiResponse<{ user: AuthResponse['user'] }>> {
+      return apiClient.get<ApiResponse<{ user: AuthResponse['user'] }>>('/auth/me')
+    },
+
+    /**
+     * Get CSRF token
+     */
+    getCsrfToken(): Promise<ApiResponse<CsrfTokenResponse>> {
+      return apiClient.get<ApiResponse<CsrfTokenResponse>>('/auth/csrf-token')
     },
 
     /**
      * User logout
      */
-    logout(): Promise<ApiResponse<void>> {
-      return apiClient.post<ApiResponse<void>>('/auth/logout')
+    async logout(): Promise<ApiResponse<void>> {
+      const response = await apiClient.post<ApiResponse<void>>('/auth/logout')
+      setAccessToken(null)
+      return response
+    },
+
+    /**
+     * Logout from all devices
+     */
+    async logoutAll(): Promise<ApiResponse<void>> {
+      const response = await apiClient.post<ApiResponse<void>>('/auth/logout-all')
+      setAccessToken(null)
+      return response
     },
   },
 
