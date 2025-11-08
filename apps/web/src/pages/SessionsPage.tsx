@@ -9,12 +9,15 @@ import { BulkSessionForm } from '@/components/sessions/BulkSessionForm'
 import { SessionSearchModal } from '@/components/sessions/SessionSearchModal'
 import { SkeletonLoader } from '@/components/common/SkeletonLoader'
 import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp'
+import { useToast, useToastConfirm } from '@/contexts/ToastContext'
 import { filterSessions, sortSessions, groupSessionsByDate } from '@/utils/sessionUtils'
 
 type SortOption = 'date' | 'priority' | 'status' | 'category'
 type GroupOption = 'none' | 'date' | 'status' | 'category'
 
 const SessionsPage: React.FC = () => {
+  const toast = useToast()
+  const confirm = useToastConfirm()
   const { sessions: rawSessions, loading, error, createSession, bulkCreateSessions, updateSession, deleteSession, refetch, updateFilters, filters } = useSessions()
 
   // Normalize sessions at the boundary - filter out any invalid entries
@@ -136,8 +139,15 @@ const SessionsPage: React.FC = () => {
   }
 
   const handleDeleteSession = async (id: string) => {
-    if (confirm('Are you sure you want to delete this session?')) {
-      await deleteSession(id)
+    const confirmed = await confirm('Are you sure you want to delete this session?')
+    if (confirmed) {
+      try {
+        await deleteSession(id)
+        toast.success('Session deleted successfully')
+      } catch (error) {
+        console.error('Error deleting session:', error)
+        toast.error('Failed to delete session')
+      }
     }
   }
 
