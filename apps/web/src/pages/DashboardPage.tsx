@@ -6,6 +6,7 @@ import { SessionForm } from '@/components/sessions/SessionForm';
 import { CalendarView } from '@/components/calendar/CalendarView';
 import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp';
 import { SkeletonLoader } from '@/components/common/SkeletonLoader';
+import { Modal } from '@/components/common/Modal';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { SessionResponse, SessionStatsDto } from '@repo/shared-types';
 import { api } from '@/services/api';
@@ -269,26 +270,25 @@ export default function DashboardPage() {
       )}
 
       {/* Session Form Modal */}
-      {showSessionForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                {selectedSession ? 'Edit Session' : 'Create New Session'}
-              </h2>
-              <SessionForm
-                session={selectedSession || undefined}
-                onSubmit={selectedSession ? handleUpdateSession : handleCreateSession}
-                onCancel={() => {
-                  setShowSessionForm(false);
-                  setSelectedSession(null);
-                }}
-                loading={loading}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={showSessionForm}
+        onClose={() => {
+          setShowSessionForm(false);
+          setSelectedSession(null);
+        }}
+        title={selectedSession ? 'Edit Session' : 'Create New Session'}
+        size="xl"
+      >
+        <SessionForm
+          session={selectedSession || undefined}
+          onSubmit={selectedSession ? handleUpdateSession : handleCreateSession}
+          onCancel={() => {
+            setShowSessionForm(false);
+            setSelectedSession(null);
+          }}
+          loading={loading}
+        />
+      </Modal>
 
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsHelp

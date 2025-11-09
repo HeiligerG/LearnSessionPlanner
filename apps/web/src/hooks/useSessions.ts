@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/services/api';
 import type {
   SessionResponse,
@@ -14,12 +14,18 @@ export function useSessions(initialFilters?: SessionFilters) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [filters, setFilters] = useState<SessionFilters | undefined>(initialFilters);
+  const filtersRef = useRef(filters);
+
+  // Keep ref in sync with filters state
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   const fetchSessions = useCallback(async (filterOverride?: SessionFilters) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.sessions.getAll(filterOverride || filters);
+      const response = await api.sessions.getAll(filterOverride || filtersRef.current);
       // Extract sessions from the nested response structure
       const data = response.data?.data || [];
       setSessions(Array.isArray(data) ? data : []);
@@ -29,7 +35,7 @@ export function useSessions(initialFilters?: SessionFilters) {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, []);
 
   const createSession = useCallback(async (dto: CreateSessionDto) => {
     setLoading(true);
@@ -111,7 +117,8 @@ export function useSessions(initialFilters?: SessionFilters) {
 
   useEffect(() => {
     fetchSessions();
-  }, [fetchSessions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   return {
     sessions,

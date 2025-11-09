@@ -7,6 +7,7 @@ import type {
   SessionPriority,
 } from '@repo/shared-types';
 import { SESSION_CATEGORIES, SESSION_PRIORITIES } from '@repo/shared-types';
+import { Button } from '@/components/common/Button';
 
 interface BulkSessionFormProps {
   onSubmit: (dto: BulkCreateSessionDto) => Promise<void>;
@@ -323,23 +324,25 @@ export function BulkSessionForm({
                 className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white col-span-2"
               />
               {manualSessions.length > 1 && (
-                <button
+                <Button
                   type="button"
                   onClick={() => setManualSessions(manualSessions.filter((_, i) => i !== index))}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md col-span-2"
+                  variant="danger"
+                  size="sm"
+                  className="col-span-2"
                 >
                   Remove
-                </button>
+                </Button>
               )}
             </div>
           ))}
-          <button
+          <Button
             type="button"
             onClick={() => setManualSessions([...manualSessions, { ...EMPTY_SESSION }])}
-            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
+            variant="secondary"
           >
             + Add Another Session
-          </button>
+          </Button>
         </div>
       )}
 
@@ -566,13 +569,14 @@ export function BulkSessionForm({
               </label>
             </div>
 
-            <button
+            <Button
               type="button"
               onClick={generateRecurrencePreview}
-              className="mt-3 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md"
+              variant="primary"
+              className="mt-3"
             >
               Generate Preview
-            </button>
+            </Button>
 
             {previewSessions.length > 0 && (
               <div className="mt-3">
@@ -597,21 +601,22 @@ export function BulkSessionForm({
 
       {/* Footer */}
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
+        <Button
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md disabled:opacity-50"
+          variant="ghost"
         >
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
           disabled={loading || (activeTab === 'csv' && csvData.length === 0)}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md disabled:opacity-50"
+          variant="primary"
+          loading={loading}
         >
-          {loading ? 'Creating...' : 'Create Sessions'}
-        </button>
+          Create Sessions
+        </Button>
       </div>
     </form>
   );

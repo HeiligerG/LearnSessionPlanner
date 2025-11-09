@@ -6,11 +6,15 @@ import CategoryChart from '@/components/statistics/CategoryChart';
 import TrendChart from '@/components/statistics/TrendChart';
 import TimeDistributionChart from '@/components/statistics/TimeDistributionChart';
 import ProductivityMetrics from '@/components/statistics/ProductivityMetrics';
+import { useSessions } from '@/hooks/useSessions';
 
 export default function StatisticsPage() {
   const [stats, setStats] = useState<DetailedStatsDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // Use sessions hook to detect when sessions change
+  const { sessions } = useSessions();
 
   // Initialize date range to last 30 days
   const getDefaultDateRange = () => {
@@ -35,7 +39,7 @@ export default function StatisticsPage() {
 
   useEffect(() => {
     fetchStats();
-  }, [dateRange]);
+  }, [dateRange, sessions.length]);
 
   const fetchStats = async () => {
     try {
