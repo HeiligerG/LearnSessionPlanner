@@ -131,22 +131,46 @@ export function calculateCompletionRate(sessions: SessionResponse[]): number {
 export function groupSessionsByDate(sessions: SessionResponse[]): Record<string, SessionResponse[]> {
   const grouped: Record<string, SessionResponse[]> = {};
 
+  // Validate input
+  if (!Array.isArray(sessions)) {
+    console.warn('groupSessionsByDate: sessions is not an array', sessions);
+    return grouped;
+  }
+
   sessions.forEach(session => {
     // Skip undefined or invalid sessions
-    if (!session || !session.category) return;
+    if (!session || typeof session !== 'object' || !session.category || !session.status) {
+      console.warn('groupSessionsByDate: skipping invalid session', session);
+      return;
+    }
 
-    if (!session.scheduledFor) {
-      const key = 'Unscheduled';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(session);
-    } else {
-      const date = new Date(session.scheduledFor);
-      // Format as readable date: "Nov 3, 2025"
-      const key = date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      });
+    try {
+      if (!session.scheduledFor) {
+        const key = 'Unscheduled';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(session);
+      } else {
+        const date = new Date(session.scheduledFor);
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+          console.warn('groupSessionsByDate: invalid date for session', session.scheduledFor, session);
+          const key = 'Invalid Date';
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(session);
+        } else {
+          // Format as readable date: "Nov 3, 2025"
+          const key = date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          });
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(session);
+        }
+      }
+    } catch (error) {
+      console.error('groupSessionsByDate: error processing session', session, error);
+      const key = 'Error';
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(session);
     }
@@ -181,56 +205,96 @@ export function groupSessionsByStatus(sessions: SessionResponse[]): Record<Sessi
  * Filter sessions
  */
 export function filterSessions(sessions: SessionResponse[], filters: SessionFilters): SessionResponse[] {
+  // Validate input
+  if (!Array.isArray(sessions)) {
+    console.warn('filterSessions: sessions is not an array', sessions);
+    return [];
+  }
+
   return sessions.filter(session => {
     // Skip undefined or invalid sessions
-    if (!session || !session.category || !session.status) return false;
-
-    // Category filter
-    if (filters.category && session.category !== filters.category) {
+    if (!session || typeof session !== 'object' || !session.category || !session.status) {
+      console.warn('filterSessions: skipping invalid session', session);
       return false;
     }
 
-    // Status filter
-    if (filters.status) {
-      const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
-      if (!statuses.includes(session.status)) return false;
-    }
-
-    // Priority filter
-    if (filters.priority) {
-      const priorities = Array.isArray(filters.priority) ? filters.priority : [filters.priority];
-      if (!priorities.includes(session.priority)) return false;
-    }
-
-    // Tags filter
-    if (filters.tags && filters.tags.length > 0) {
-      const hasTag = filters.tags.some(tag => session.tags.includes(tag));
-      if (!hasTag) return false;
-    }
-
-    // Date range filter
-    if (filters.scheduledFrom || filters.scheduledTo) {
-      if (!session.scheduledFor) return false;
-
-      const scheduledDate = new Date(session.scheduledFor);
-      if (filters.scheduledFrom && scheduledDate < new Date(filters.scheduledFrom)) {
+    try {
+      // Category filter
+      if (filters?.category && session.category !== filters.category) {
         return false;
       }
-      if (filters.scheduledTo && scheduledDate > new Date(filters.scheduledTo)) {
-        return false;
-      }
-    }
 
-    // Search filter
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      const matchesTitle = session.title.toLowerCase().includes(searchLower);
-      const matchesDescription = session.description?.toLowerCase().includes(searchLower);
-      const matchesNotes = session.notes?.toLowerCase().includes(searchLower);
-
-      if (!matchesTitle && !matchesDescription && !matchesNotes) {
-        return false;
+      // Status filter
+      if (filters?.status) {
+        const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
+        if (!statuses.includes(session.status)) return false;
       }
+
+      // Priority filter
+      if (filters?.priority) {
+        const priorities = Array.isArray(filters.priority) ? filters.priority : [filters.priority];
+        if (!priorities.includes(session.priority)) return false;
+      }
+
+      // Tags filter
+      if (filters?.tags && Array.isArray(filters.tags) && filters.tags.length > 0) {
+        const sessionTags = Array.isArray(session.tags) ? session.tags : [];
+        const hasTag = filters.tags.some(tag => sessionTags.includes(tag));
+        if (!hasTag) return false;
+      }
+
+      // Date range filter
+      if (filters?.scheduledFrom || filters?.scheduledTo) {
+        if (!session.scheduledFor) return false;
+
+        try {
+          const scheduledDate = new Date(session.scheduledFor);
+          if (isNaN(scheduledDate.getTime())) {
+            console.warn('filterSessions: invalid date for session', session.scheduledFor, session);
+            return false;
+          }
+
+          if (filters.scheduledFrom) {
+            const fromDate = new Date(filters.scheduledFrom);
+            if (isNaN(fromDate.getTime())) {
+              console.warn('filterSessions: invalid scheduledFrom date', filters.scheduledFrom);
+            } else if (scheduledDate < fromDate) {
+              return false;
+            }
+          }
+
+          if (filters.scheduledTo) {
+            const toDate = new Date(filters.scheduledTo);
+            if (isNaN(toDate.getTime())) {
+              console.warn('filterSessions: invalid scheduledTo date', filters.scheduledTo);
+            } else if (scheduledDate > toDate) {
+              return false;
+            }
+          }
+        } catch (dateError) {
+          console.error('filterSessions: error processing date filter', dateError);
+          return false;
+        }
+      }
+
+      // Search filter
+      if (filters?.search && typeof filters.search === 'string') {
+        const searchLower = filters.search.toLowerCase();
+        const title = session.title || '';
+        const description = session.description || '';
+        const notes = session.notes || '';
+
+        const matchesTitle = title.toLowerCase().includes(searchLower);
+        const matchesDescription = description.toLowerCase().includes(searchLower);
+        const matchesNotes = notes.toLowerCase().includes(searchLower);
+
+        if (!matchesTitle && !matchesDescription && !matchesNotes) {
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error('filterSessions: error filtering session', session, error);
+      return false;
     }
 
     return true;

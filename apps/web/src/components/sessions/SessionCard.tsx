@@ -11,6 +11,7 @@ import { getCategoryStyle } from '@/utils/categoryStyles';
 import { triggerCelebration } from '@/utils/animations';
 import { useToastConfirm, useToast } from '@/contexts/ToastContext';
 import { QuickActionMenu, type QuickAction } from '@/components/common/QuickActionMenu';
+import { ProgressRing } from '@/components/common/ProgressRing';
 import { Copy, Check, Calendar, MoreVertical } from 'lucide-react';
 
 interface SessionCardProps {
@@ -26,13 +27,26 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
   const confirm = useToastConfirm();
   const toast = useToast();
   const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Guard against undefined session
-  if (!session) {
-    return null;
+  // Guard against undefined or invalid session
+  if (!session || typeof session !== 'object' || !session.id || !session.category || !session.status) {
+    console.warn('SessionCard: Invalid session data', session);
+    return (
+      <div className="rounded-xl border-l-4 border-l-gray-300 bg-gray-50 dark:bg-gray-800 p-4 shadow-md">
+        <div className="text-gray-500 dark:text-gray-400 text-sm">
+          Invalid session data
+        </div>
+      </div>
+    );
   }
+
+  // Calculate progress percentage if actualDuration exists
+  const progressPercentage = session.actualDuration && session.duration
+    ? Math.min((session.actualDuration / session.duration) * 100, 100)
+    : 0;
 
   const handleDuplicate = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -44,10 +58,11 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
 
   const handleMarkComplete = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    setIsLoading(true);
     // Comment 7: Use onQuickUpdate if available for one-click persist
     if (onQuickUpdate) {
       try {
-        await onQuickUpdate(session.id, { status: 'completed' });
+        await onQuickUpdate(session.id, { status: 'completed' as const });
         toast.success('Session marked as complete');
         // Trigger celebration animation
         if (cardRef.current) {
@@ -55,10 +70,13 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
         }
       } catch (error) {
         toast.error('Failed to mark session complete');
+      } finally {
+        setIsLoading(false);
       }
     } else if (onEdit) {
       // Fallback to edit modal if no quick update
-      onEdit({ ...session, status: 'completed' });
+      setIsLoading(false);
+      onEdit({ ...session, status: 'completed' as const });
     }
   };
 
@@ -101,18 +119,34 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
   return (
     <div
       ref={cardRef}
-      className={`rounded-lg border-l-4 ${statusColor} bg-white dark:bg-gray-800 p-4 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-[1.01] active:scale-[0.99] animate-slide-up`}
+      className={`group relative rounded-xl border-l-4 ${statusColor} overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] animate-slide-up`}
       onClick={() => onClick?.(session)}
     >
+      {/* Category gradient overlay */}
+      <div className={`absolute inset-0 ${categoryStyle.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-300`} />
+
+      {/* Glassmorphism card content */}
+      <div className="relative glass-card p-4">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <div className={`p-2 ${categoryStyle.iconBg} rounded-lg animate-scale-in`}>
+            <div className={`p-2 ${categoryStyle.iconBg} rounded-lg animate-scale-in group-hover:scale-110 transition-transform duration-300`}>
               <CategoryIcon className={`w-4 h-4 ${categoryStyle.iconColor}`} />
             </div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">
+            <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
               {session.title}
             </h3>
+            {progressPercentage > 0 && (
+              <div className="ml-auto">
+                <ProgressRing
+                  progress={progressPercentage}
+                  size={32}
+                  strokeWidth={3}
+                  color={progressPercentage >= 100 ? 'success' : 'primary'}
+                  showPercentage={false}
+                />
+              </div>
+            )}
           </div>
 
           {session.description && (
@@ -156,14 +190,14 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 ml-4">
+        <div className="flex flex-col gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
             ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation();
               setShowQuickMenu(!showQuickMenu);
             }}
-            className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target"
+            className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target ripple-on-click"
             title="More Actions (Ctrl+D for duplicate)"
           >
             <MoreVertical className="w-5 h-5" />
@@ -174,7 +208,7 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
                 e.stopPropagation();
                 onEdit(session);
               }}
-              className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target"
+              className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target ripple-on-click"
               title="Edit"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +225,7 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
                   onDelete(session.id);
                 }
               }}
-              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target"
+              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target ripple-on-click"
               title="Delete"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -209,6 +243,14 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
         actions={quickActions}
         anchorEl={menuButtonRef.current || undefined}
       />
+      </div>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm flex items-center justify-center rounded-xl z-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 dark:border-primary-400" />
+        </div>
+      )}
     </div>
   );
 }

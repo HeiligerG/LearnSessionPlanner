@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Plus, Upload, Search as SearchIcon } from 'lucide-react'
+import { Plus, Upload, Search as SearchIcon, ArrowUp, X } from 'lucide-react'
 import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto, BulkCreateSessionDto, BulkCreateResult, TemplateResponse } from '@repo/shared-types'
 import { useSessions } from '@/hooks/useSessions'
 import { useRecentSessions } from '@/hooks/useRecentSessions'
@@ -11,8 +11,40 @@ import { BulkSessionForm } from '@/components/sessions/BulkSessionForm'
 import { SessionSearchModal } from '@/components/sessions/SessionSearchModal'
 import { SkeletonLoader } from '@/components/common/SkeletonLoader'
 import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp'
+import { EmptyState } from '@/components/common/EmptyState'
+import { FilterChip } from '@/components/common/FilterChip'
 import { useToast, useToastConfirm } from '@/contexts/ToastContext'
 import { filterSessions, sortSessions, groupSessionsByDate } from '@/utils/sessionUtils'
+import { BookOpen } from 'lucide-react'
+
+// Simple error boundary for session rendering
+const SessionErrorBoundary: React.FC<{ children: React.ReactNode; sessionId?: string }> = ({ children, sessionId }) => {
+  const [hasError, setHasError] = useState(false)
+
+  if (hasError) {
+    return (
+      <div className="rounded-xl border-l-4 border-l-red-500 bg-red-50 dark:bg-red-900/20 p-4">
+        <div className="text-red-700 dark:text-red-300 text-sm">
+          Error rendering session {sessionId ? `(${sessionId})` : ''}
+        </div>
+      </div>
+    )
+  }
+
+  try {
+    return <>{children}</>
+  } catch (error: any) {
+    console.error('Session rendering error:', error)
+    setHasError(true)
+    return (
+      <div className="rounded-xl border-l-4 border-l-red-500 bg-red-50 dark:bg-red-900/20 p-4">
+        <div className="text-red-700 dark:text-red-300 text-sm">
+          Error rendering session {sessionId ? `(${sessionId})` : ''}
+        </div>
+      </div>
+    )
+  }
+}
 
 type SortOption = 'date' | 'priority' | 'status' | 'category'
 type GroupOption = 'none' | 'date' | 'status' | 'category'
@@ -46,6 +78,16 @@ const SessionsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('date')
   const [groupBy, setGroupBy] = useState<GroupOption>('date')
+  const [showScrollToTop, setShowScrollToTop] = useState(false)
+
+  // Track scroll position for scroll-to-top button
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollToTop(window.scrollY > 400)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Keyboard shortcuts
   const shortcuts = useMemo(() => [
@@ -132,12 +174,12 @@ const SessionsPage: React.FC = () => {
     };
   }, [sessions.length, lastInteractedSession, registerShortcut, unregisterShortcut, createSession, toast]);
 
-  // Apply filters, search, and sort
-  const processedSessions = useMemo(() => {
+  // Apply search filter to the sessions
+  const filteredSessions = useMemo(() => {
     // Filter out any null/undefined sessions first
     let result = sessions.filter(s => s != null)
 
-    // Apply search
+    // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
       result = result.filter(s =>
@@ -147,11 +189,13 @@ const SessionsPage: React.FC = () => {
       )
     }
 
-    // Sort
-    result = sortSessions(result, sortBy === 'date' ? 'scheduledFor' : sortBy)
-
     return result
-  }, [sessions, searchTerm, sortBy])
+  }, [sessions, searchTerm])
+
+  // Apply sorting to filtered sessions
+  const processedSessions = useMemo(() => {
+    return sortSessions(filteredSessions, sortBy === 'date' ? 'scheduledFor' : sortBy)
+  }, [filteredSessions, sortBy])
 
   // Group sessions
   const groupedSessions = useMemo(() => {
@@ -371,110 +415,294 @@ const SessionsPage: React.FC = () => {
         )}
 
         {/* Filters and Controls */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+        <div className="glass-card p-6 mb-6 animate-fade-in">
           {/* Search */}
-          <div className="mb-4">
+          <div className="mb-6">
             <input
               type="text"
               placeholder="Search sessions..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
             />
           </div>
 
-          {/* Filters */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Category Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Category
-              </label>
-              <select
-                value={filters?.category || ''}
-                onChange={(e) => updateFilters({ category: e.target.value as SessionCategory | undefined || undefined })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">All Categories</option>
-                <option value="school">School</option>
-                <option value="programming">Programming</option>
-                <option value="language">Language</option>
-                <option value="personal">Personal</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            {/* Status Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
-              </label>
-              <select
-                value={filters?.status?.[0] || ''}
-                onChange={(e) => updateFilters({ status: e.target.value ? [e.target.value as SessionStatus] : undefined })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">All Statuses</option>
-                <option value="planned">Planned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="missed">Missed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-
-            {/* Priority Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Priority
-              </label>
-              <select
-                value={filters?.priority?.[0] || ''}
-                onChange={(e) => updateFilters({ priority: e.target.value ? [e.target.value as SessionPriority] : undefined })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">All Priorities</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-
-            {/* Sort By */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Sort By
-              </label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="date">Date</option>
-                <option value="priority">Priority</option>
-                <option value="status">Status</option>
-                <option value="category">Category</option>
-              </select>
-            </div>
-
-            {/* Group By */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Group By
-              </label>
-              <select
-                value={groupBy}
-                onChange={(e) => setGroupBy(e.target.value as GroupOption)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="none">None</option>
-                <option value="date">Date</option>
-                <option value="status">Status</option>
-                <option value="category">Category</option>
-              </select>
+          {/* Category Filters */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Category
+            </label>
+            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin">
+              <FilterChip
+                label="All"
+                value="all"
+                isActive={!filters?.category}
+                onToggle={() => updateFilters({ category: undefined })}
+              />
+              <FilterChip
+                label="School"
+                value="school"
+                variant="category"
+                isActive={filters?.category === 'school'}
+                onToggle={() => updateFilters({ category: filters?.category === 'school' ? undefined : 'school' as SessionCategory })}
+              />
+              <FilterChip
+                label="Programming"
+                value="programming"
+                variant="category"
+                isActive={filters?.category === 'programming'}
+                onToggle={() => updateFilters({ category: filters?.category === 'programming' ? undefined : 'programming' as SessionCategory })}
+              />
+              <FilterChip
+                label="Language"
+                value="language"
+                variant="category"
+                isActive={filters?.category === 'language'}
+                onToggle={() => updateFilters({ category: filters?.category === 'language' ? undefined : 'language' as SessionCategory })}
+              />
+              <FilterChip
+                label="Personal"
+                value="personal"
+                variant="category"
+                isActive={filters?.category === 'personal'}
+                onToggle={() => updateFilters({ category: filters?.category === 'personal' ? undefined : 'personal' as SessionCategory })}
+              />
+              <FilterChip
+                label="Other"
+                value="other"
+                variant="category"
+                isActive={filters?.category === 'other'}
+                onToggle={() => updateFilters({ category: filters?.category === 'other' ? undefined : 'other' as SessionCategory })}
+              />
             </div>
           </div>
+
+          {/* Status Filters */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Status
+            </label>
+            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin">
+              <FilterChip
+                label="All"
+                value="all"
+                isActive={!filters?.status || filters.status.length === 0}
+                onToggle={() => updateFilters({ status: undefined })}
+              />
+              <FilterChip
+                label="Planned"
+                value="planned"
+                variant="status"
+                isActive={filters?.status?.includes('planned')}
+                onToggle={() => {
+                  const newStatus = filters?.status?.includes('planned')
+                    ? (filters.status as SessionStatus[]).filter(s => s !== 'planned')
+                    : [...(filters?.status || []), 'planned'];
+                  updateFilters({ status: newStatus.length ? newStatus as SessionStatus[] : undefined });
+                }}
+              />
+              <FilterChip
+                label="In Progress"
+                value="in_progress"
+                variant="status"
+                isActive={filters?.status?.includes('in_progress')}
+                onToggle={() => {
+                  const newStatus = filters?.status?.includes('in_progress')
+                    ? (filters.status as SessionStatus[]).filter(s => s !== 'in_progress')
+                    : [...(filters?.status || []), 'in_progress'];
+                  updateFilters({ status: newStatus.length ? newStatus as SessionStatus[] : undefined });
+                }}
+              />
+              <FilterChip
+                label="Completed"
+                value="completed"
+                variant="status"
+                isActive={filters?.status?.includes('completed')}
+                onToggle={() => {
+                  const newStatus = filters?.status?.includes('completed')
+                    ? (filters.status as SessionStatus[]).filter(s => s !== 'completed')
+                    : [...(filters?.status || []), 'completed'];
+                  updateFilters({ status: newStatus.length ? newStatus as SessionStatus[] : undefined });
+                }}
+              />
+              <FilterChip
+                label="Missed"
+                value="missed"
+                variant="status"
+                isActive={filters?.status?.includes('missed')}
+                onToggle={() => {
+                  const newStatus = filters?.status?.includes('missed')
+                    ? (filters.status as SessionStatus[]).filter(s => s !== 'missed')
+                    : [...(filters?.status || []), 'missed'];
+                  updateFilters({ status: newStatus.length ? newStatus as SessionStatus[] : undefined });
+                }}
+              />
+              <FilterChip
+                label="Cancelled"
+                value="cancelled"
+                variant="status"
+                isActive={filters?.status?.includes('cancelled')}
+                onToggle={() => {
+                  const newStatus = filters?.status?.includes('cancelled')
+                    ? (filters.status as SessionStatus[]).filter(s => s !== 'cancelled')
+                    : [...(filters?.status || []), 'cancelled'];
+                  updateFilters({ status: newStatus.length ? newStatus as SessionStatus[] : undefined });
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Priority Filters */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Priority
+            </label>
+            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin">
+              <FilterChip
+                label="All"
+                value="all"
+                isActive={!filters?.priority || filters.priority.length === 0}
+                onToggle={() => updateFilters({ priority: undefined })}
+              />
+              <FilterChip
+                label="Low"
+                value="low"
+                variant="priority"
+                isActive={filters?.priority?.includes('low')}
+                onToggle={() => {
+                  const newPriority = filters?.priority?.includes('low')
+                    ? (filters.priority as SessionPriority[]).filter(p => p !== 'low')
+                    : [...(filters?.priority || []), 'low'];
+                  updateFilters({ priority: newPriority.length ? newPriority as SessionPriority[] : undefined });
+                }}
+              />
+              <FilterChip
+                label="Medium"
+                value="medium"
+                variant="priority"
+                isActive={filters?.priority?.includes('medium')}
+                onToggle={() => {
+                  const newPriority = filters?.priority?.includes('medium')
+                    ? (filters.priority as SessionPriority[]).filter(p => p !== 'medium')
+                    : [...(filters?.priority || []), 'medium'];
+                  updateFilters({ priority: newPriority.length ? newPriority as SessionPriority[] : undefined });
+                }}
+              />
+              <FilterChip
+                label="High"
+                value="high"
+                variant="priority"
+                isActive={filters?.priority?.includes('high')}
+                onToggle={() => {
+                  const newPriority = filters?.priority?.includes('high')
+                    ? (filters.priority as SessionPriority[]).filter(p => p !== 'high')
+                    : [...(filters?.priority || []), 'high'];
+                  updateFilters({ priority: newPriority.length ? newPriority as SessionPriority[] : undefined });
+                }}
+              />
+              <FilterChip
+                label="Urgent"
+                value="urgent"
+                variant="priority"
+                isActive={filters?.priority?.includes('urgent')}
+                onToggle={() => {
+                  const newPriority = filters?.priority?.includes('urgent')
+                    ? (filters.priority as SessionPriority[]).filter(p => p !== 'urgent')
+                    : [...(filters?.priority || []), 'urgent'];
+                  updateFilters({ priority: newPriority.length ? newPriority as SessionPriority[] : undefined });
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Sort and Group Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Sort By
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <FilterChip
+                  label="Date"
+                  value="date"
+                  isActive={sortBy === 'date'}
+                  onToggle={() => setSortBy('date')}
+                />
+                <FilterChip
+                  label="Priority"
+                  value="priority"
+                  isActive={sortBy === 'priority'}
+                  onToggle={() => setSortBy('priority')}
+                />
+                <FilterChip
+                  label="Status"
+                  value="status"
+                  isActive={sortBy === 'status'}
+                  onToggle={() => setSortBy('status')}
+                />
+                <FilterChip
+                  label="Category"
+                  value="category"
+                  isActive={sortBy === 'category'}
+                  onToggle={() => setSortBy('category')}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Group By
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <FilterChip
+                  label="None"
+                  value="none"
+                  isActive={groupBy === 'none'}
+                  onToggle={() => setGroupBy('none')}
+                />
+                <FilterChip
+                  label="Date"
+                  value="date"
+                  isActive={groupBy === 'date'}
+                  onToggle={() => setGroupBy('date')}
+                />
+                <FilterChip
+                  label="Status"
+                  value="status"
+                  isActive={groupBy === 'status'}
+                  onToggle={() => setGroupBy('status')}
+                />
+                <FilterChip
+                  label="Category"
+                  value="category"
+                  isActive={groupBy === 'category'}
+                  onToggle={() => setGroupBy('category')}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Active Filters Summary & Clear All */}
+          {(filters?.category || (filters?.status && filters.status.length > 0) || (filters?.priority && filters.priority.length > 0)) && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {(() => {
+                  let count = 0
+                  if (filters?.category) count++
+                  if (filters?.status && filters.status.length > 0) count++
+                  if (filters?.priority && filters.priority.length > 0) count++
+                  return `${count} filter${count !== 1 ? 's' : ''} active`
+                })()}
+              </span>
+              <button
+                onClick={() => updateFilters({ category: undefined, status: undefined, priority: undefined })}
+                className="flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+              >
+                <X className="w-4 h-4" />
+                Clear All
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Sessions List */}
@@ -483,37 +711,24 @@ const SessionsPage: React.FC = () => {
             <SkeletonLoader variant="card" count={6} />
           </div>
         ) : processedSessions.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-12 text-center">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No sessions found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {searchTerm || filters?.category || filters?.status || filters?.priority
+          <EmptyState
+            icon={BookOpen}
+            title="No sessions found"
+            description={
+              searchTerm || filters?.category || filters?.status || filters?.priority
                 ? 'Try adjusting your filters or search term'
-                : 'Get started by creating your first learning session'}
-            </p>
-            {!searchTerm && !filters?.category && !filters?.status && !filters?.priority && (
-              <button
-                onClick={() => setIsFormOpen(true)}
-                className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 transition-colors"
-              >
-                Create Session
-              </button>
-            )}
-          </div>
+                : 'Get started by creating your first learning session'
+            }
+            illustration="sessions"
+            action={
+              !searchTerm && !filters?.category && !filters?.status && !filters?.priority
+                ? {
+                    label: 'Create First Session',
+                    onClick: () => setIsFormOpen(true),
+                  }
+                : undefined
+            }
+          />
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedSessions).map(([groupName, groupSessions]) => {
@@ -629,6 +844,17 @@ const SessionsPage: React.FC = () => {
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
       />
+
+      {/* Scroll to Top Button */}
+      {showScrollToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-8 right-8 p-3 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 transition-all hover:scale-110 active:scale-95 z-40 animate-slide-up"
+          aria-label="Scroll to top"
+        >
+          <ArrowUp className="w-6 h-6" />
+        </button>
+      )}
     </div>
   )
 }

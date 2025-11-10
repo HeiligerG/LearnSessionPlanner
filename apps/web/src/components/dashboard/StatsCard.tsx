@@ -1,4 +1,5 @@
 import { useCountUp } from '@/utils/animations';
+import { ProgressRing } from '@/components/common/ProgressRing';
 
 interface StatsCardProps {
   title: string;
@@ -14,6 +15,8 @@ interface StatsCardProps {
   glass?: boolean;
   /** Animate number value with count-up */
   animateValue?: boolean;
+  /** Progress percentage to show with ProgressRing (0-100) */
+  progress?: number;
 }
 
 const colorClasses = {
@@ -41,6 +44,7 @@ export function StatsCard({
   trend,
   glass = false,
   animateValue = false,
+  progress,
 }: StatsCardProps) {
   const colorClass = glass ? glassColorClasses[color] : colorClasses[color];
 
@@ -51,7 +55,21 @@ export function StatsCard({
   const displayValue = shouldAnimate ? animatedValue : value;
 
   return (
-    <div className={`rounded-lg border-2 p-6 transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] animate-slide-up ${colorClass}`}>
+    <div className={`relative rounded-lg border-2 p-6 transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] animate-slide-up ${colorClass}`}>
+      {/* Progress Ring */}
+      {progress !== undefined && (
+        <div className="absolute -top-2 -right-2 z-10">
+          <ProgressRing
+            progress={progress}
+            size={60}
+            strokeWidth={6}
+            color={color === 'success' ? 'success' : 'primary'}
+            showPercentage={false}
+            animated
+          />
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm font-medium uppercase tracking-wide opacity-70">

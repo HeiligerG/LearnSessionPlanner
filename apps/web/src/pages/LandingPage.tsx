@@ -7,12 +7,21 @@ import { api } from '@/services/api';
 import type { SessionStatsDto, SessionResponse } from '@repo/shared-types';
 import { formatDate, formatTime } from '@/utils/dateUtils';
 import { featureIcons, actionIcons, statsIcons, getCategoryIconComponent } from '@/utils/iconUtils';
+import { useCountUp } from '@/utils/animations';
+import { ProgressRing } from '@/components/common/ProgressRing';
+import { getCategoryStyle, getCategoryIconClasses, getCategoryBorderClass } from '@/utils/categoryStyles';
 
 export default function LandingPage() {
   const { isAuthenticated } = useAuth();
   const { sessions } = useSessions();
   const [stats, setStats] = useState<SessionStatsDto | null>(null);
   const [upcomingSessions, setUpcomingSessions] = useState<SessionResponse[]>([]);
+
+  // Animated stats values
+  const animatedTotal = useCountUp(stats?.total || 0, 1500);
+  const animatedCompleted = useCountUp(stats?.completed || 0, 1500);
+  const animatedInProgress = useCountUp(stats?.inProgress || 0, 1500);
+  const animatedDuration = useCountUp(stats ? stats.completedDuration / 60 : 0, 1500);
 
   useEffect(() => {
     // Only fetch statistics and sessions when authenticated
@@ -43,21 +52,21 @@ export default function LandingPage() {
       description: 'Create a new learning session',
       Icon: actionIcons.newSession,
       link: '/sessions',
-      color: 'bg-blue-500',
+      category: 'school' as const,
     },
     {
       title: 'View Calendar',
       description: 'See your schedule',
       Icon: actionIcons.calendar,
       link: '/dashboard',
-      color: 'bg-green-500',
+      category: 'other' as const,
     },
     {
       title: 'All Sessions',
       description: 'Manage all sessions',
       Icon: actionIcons.sessions,
       link: '/sessions',
-      color: 'bg-purple-500',
+      category: 'programming' as const,
     },
   ];
 
@@ -143,50 +152,53 @@ export default function LandingPage() {
 
       {/* Stats Section */}
       {stats && (
-        <section className="px-4 py-12 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+        <section className="px-4 py-12 glass-card">
           <div className="mx-auto max-w-6xl">
             <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-8">
               Your Learning at a Glance
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow">
+              <div className="glass-card hover-glow hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg animate-slide-up" style={{animationDelay: '0ms'}}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="p-3 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
                     <StatsIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                   </div>
-                  <span className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total}</span>
+                  <span className="text-3xl font-bold text-gray-900 dark:text-white">{animatedTotal}</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 font-medium">Total Sessions</p>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow">
+              <div className="relative glass-card hover-glow hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg animate-slide-up" style={{animationDelay: '150ms'}}>
+                <div className="absolute -top-2 -right-2 z-10">
+                  <ProgressRing progress={stats.completionRate} size={60} strokeWidth={6} color="success" showPercentage={false} animated />
+                </div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
                     <CompletedIcon className="w-6 h-6 text-green-600 dark:text-green-400" />
                   </div>
-                  <span className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completed}</span>
+                  <span className="text-3xl font-bold text-green-600 dark:text-green-400">{animatedCompleted}</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 font-medium">Completed</p>
                 <p className="text-sm text-gray-500 dark:text-gray-500">{stats.completionRate.toFixed(1)}% completion</p>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow">
+              <div className="glass-card hover-glow hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg animate-slide-up" style={{animationDelay: '300ms'}}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
                     <InProgressIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.inProgress}</span>
+                  <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">{animatedInProgress}</span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 font-medium">In Progress</p>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow">
+              <div className="glass-card hover-glow hover:scale-105 transition-all duration-300 rounded-xl p-6 shadow-lg animate-slide-up" style={{animationDelay: '450ms'}}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
                     <TimeIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                   </div>
                   <span className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                    {(stats.completedDuration / 60).toFixed(1)}h
+                    {animatedDuration.toFixed(1)}h
                   </span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 font-medium">Learning Time</p>
@@ -206,19 +218,22 @@ export default function LandingPage() {
             Quick Actions
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {quickActions.map((action, index) => (
-              <Link
-                key={index}
-                to={action.link}
-                className="group bg-white dark:bg-gray-800 rounded-xl p-8 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-2xl transition-all hover:-translate-y-1"
-              >
-                <div className={`w-16 h-16 ${action.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <action.Icon className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{action.title}</h3>
-                <p className="text-gray-600 dark:text-gray-400">{action.description}</p>
-              </Link>
-            ))}
+            {quickActions.map((action, index) => {
+              const categoryStyle = getCategoryStyle(action.category);
+              return (
+                <Link
+                  key={index}
+                  to={action.link}
+                  className="group bg-white dark:bg-gray-800 rounded-xl p-8 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-2xl transition-all hover:-translate-y-1"
+                >
+                  <div className={`w-16 h-16 ${categoryStyle.gradient} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md`}>
+                    <action.Icon className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{action.title}</h3>
+                  <p className="text-gray-600 dark:text-gray-400">{action.description}</p>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -233,17 +248,19 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {upcomingSessions.map((session) => {
                 const CategoryIcon = getCategoryIconComponent(session.category);
+                const categoryBorderClass = getCategoryBorderClass(session.category);
+                const categoryIconClasses = getCategoryIconClasses(session.category);
                 return (
                   <div
                     key={session.id}
-                    className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border-l-4 border-primary-500 hover:shadow-xl transition-shadow"
+                    className={`bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border-l-4 ${categoryBorderClass} hover:shadow-xl transition-shadow`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         {session.title}
                       </h3>
-                      <div className="p-2 bg-primary-100 dark:bg-primary-900 rounded-lg">
-                        <CategoryIcon className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                      <div className={`p-2 rounded-lg ${categoryIconClasses.split(' ').slice(0, 2).join(' ')}`}>
+                        <CategoryIcon className={`w-5 h-5 ${categoryIconClasses.split(' ').slice(2).join(' ')}`} />
                       </div>
                     </div>
                     {session.description && (
@@ -278,7 +295,8 @@ export default function LandingPage() {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow"
+                className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow animate-slide-up"
+                style={{animationDelay: `${index * 100}ms`}}
               >
                 <div className="p-3 bg-indigo-100 dark:bg-indigo-900 rounded-lg inline-block mb-4">
                   <feature.Icon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />

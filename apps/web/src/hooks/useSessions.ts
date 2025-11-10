@@ -26,10 +26,33 @@ export function useSessions(initialFilters?: SessionFilters) {
     setError(null);
     try {
       const response = await api.sessions.getAll(filterOverride || filtersRef.current);
-      // Extract sessions from the nested response structure
-      const data = response.data?.data || [];
-      setSessions(Array.isArray(data) ? data : []);
+      
+      // Validate and normalize the response structure
+      let sessionsData: SessionResponse[] = [];
+      
+      if (response && typeof response === 'object') {
+        // Handle different possible response structures
+        if (Array.isArray(response.data)) {
+          sessionsData = response.data;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          sessionsData = response.data.data;
+        } else if (Array.isArray(response)) {
+          sessionsData = response;
+        }
+      }
+      
+      // Validate each session object
+      const validatedSessions = sessionsData.filter(session => 
+        session && 
+        typeof session === 'object' && 
+        session.id && 
+        session.category && 
+        session.status
+      );
+      
+      setSessions(validatedSessions);
     } catch (err) {
+      console.error('Error fetching sessions:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch sessions'));
       setSessions([]);
     } finally {
@@ -42,11 +65,21 @@ export function useSessions(initialFilters?: SessionFilters) {
     setError(null);
     try {
       const response = await api.sessions.create(dto);
-      const newSession = response.data;
+      
+      // Handle API response structure: ApiResponse<SessionResponse>
+      let newSession: SessionResponse | null = null;
+      
+      if (response && typeof response === 'object' && response.data) {
+        // The response should be ApiResponse<SessionResponse> with data property
+        newSession = response.data;
+      }
+      
       if (newSession) {
         setSessions((prev) => [newSession, ...prev]);
+        return newSession;
+      } else {
+        throw new Error('Invalid response format from session creation');
       }
-      return newSession;
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to create session'));
       throw err;
@@ -60,13 +93,23 @@ export function useSessions(initialFilters?: SessionFilters) {
     setError(null);
     try {
       const response = await api.sessions.update(id, dto);
-      const updatedSession = response.data;
+      
+      // Handle API response structure: ApiResponse<SessionResponse>
+      let updatedSession: SessionResponse | null = null;
+      
+      if (response && typeof response === 'object' && response.data) {
+        // The response should be ApiResponse<SessionResponse> with data property
+        updatedSession = response.data;
+      }
+      
       if (updatedSession) {
         setSessions((prev) =>
-          prev.map((session) => (session.id === id ? updatedSession : session))
+          prev.map((session) => (session.id === id ? updatedSession! : session))
         );
+        return updatedSession;
+      } else {
+        throw new Error('Invalid response format from session update');
       }
-      return updatedSession;
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to update session'));
       throw err;
@@ -95,10 +138,10 @@ export function useSessions(initialFilters?: SessionFilters) {
     try {
       const response = await api.sessions.bulkCreate(dto);
       const result = response.data;
-      if (result && result.successful.length > 0) {
+      if (result && result.successful && result.successful.length > 0) {
         setSessions((prev) => [...result.successful, ...prev]);
       }
-      return result;
+      return result || { successful: [], failed: [], totalCreated: 0, totalFailed: 0 };
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to bulk create sessions'));
       throw err;
