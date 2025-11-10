@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { Plus, Upload, Search as SearchIcon } from 'lucide-react'
 import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto, BulkCreateSessionDto, BulkCreateResult, TemplateResponse } from '@repo/shared-types'
 import { useSessions } from '@/hooks/useSessions'
+import { useRecentSessions } from '@/hooks/useRecentSessions'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { SessionCard } from '@/components/sessions/SessionCard'
 import { SessionForm } from '@/components/sessions/SessionForm'
@@ -19,6 +20,7 @@ const SessionsPage: React.FC = () => {
   const toast = useToast()
   const confirm = useToastConfirm()
   const { sessions: rawSessions, loading, error, createSession, bulkCreateSessions, updateSession, deleteSession, refetch, updateFilters, filters } = useSessions()
+  const { addRecentSession } = useRecentSessions()
 
   // Normalize sessions at the boundary - filter out any invalid entries
   const sessions = useMemo(() => {
@@ -152,8 +154,41 @@ const SessionsPage: React.FC = () => {
   }
 
   const handleEditClick = (session: SessionResponse) => {
+    // Comment 8: Add to recent sessions when editing
+    addRecentSession(session)
     setSelectedSession(session)
     setIsFormOpen(true)
+  }
+
+  // Comment 6: Duplicate session handler
+  const handleDuplicateSession = async (session: SessionResponse) => {
+    try {
+      const duplicateDto = {
+        title: session.title,
+        description: session.description,
+        category: session.category,
+        priority: session.priority,
+        duration: session.duration,
+        tags: session.tags,
+        notes: session.notes,
+        status: 'planned' as const,
+      }
+      await createSession(duplicateDto)
+      toast.success('Session duplicated successfully')
+    } catch (error) {
+      console.error('Failed to duplicate session:', error)
+      toast.error('Failed to duplicate session')
+    }
+  }
+
+  // Comment 7: Quick update handler
+  const handleQuickUpdate = async (id: string, patch: Partial<SessionResponse>) => {
+    try {
+      await updateSession(id, patch)
+    } catch (error) {
+      console.error('Failed to update session:', error)
+      throw error
+    }
   }
 
   const handleCloseForm = () => {
@@ -176,8 +211,9 @@ const SessionsPage: React.FC = () => {
     console.log('Template saved:', template)
   }
 
+  // Comment 8: Add to recent sessions when selecting from search
   const handleSelectSearchResult = (session: SessionResponse) => {
-    // Open edit mode for the selected session
+    addRecentSession(session)
     setSelectedSession(session)
     setIsFormOpen(true)
   }
@@ -460,6 +496,8 @@ const SessionsPage: React.FC = () => {
                             session={session}
                             onEdit={handleEditClick}
                             onDelete={handleDeleteSession}
+                            onDuplicate={handleDuplicateSession}
+                            onQuickUpdate={handleQuickUpdate}
                           />
                         </div>
                       ))}

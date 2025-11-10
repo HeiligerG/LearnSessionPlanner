@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSessions } from '@/hooks/useSessions';
+import { useRecentSessions } from '@/hooks/useRecentSessions';
+import { useToast } from '@/contexts/ToastContext';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SessionCard } from '@/components/sessions/SessionCard';
 import { SessionForm } from '@/components/sessions/SessionForm';
@@ -21,6 +23,9 @@ export default function DashboardPage() {
     deleteSession,
     refetch,
   } = useSessions();
+
+  const { addRecentSession } = useRecentSessions();
+  const toast = useToast();
 
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [showSessionForm, setShowSessionForm] = useState(false);
@@ -102,6 +107,8 @@ export default function DashboardPage() {
   };
 
   const handleEditSession = (session: SessionResponse) => {
+    // Comment 8: Add to recent sessions when editing
+    addRecentSession(session);
     setSelectedSession(session);
     setShowSessionForm(true);
   };
@@ -111,6 +118,40 @@ export default function DashboardPage() {
       await deleteSession(id);
     } catch (error) {
       console.error('Failed to delete session:', error);
+    }
+  };
+
+  // Comment 6: Duplicate session handler
+  const handleDuplicateSession = async (session: SessionResponse) => {
+    try {
+      // Copy all fields except id, timestamps, set status to 'planned', unset scheduledFor
+      const duplicateDto = {
+        title: session.title,
+        description: session.description,
+        category: session.category,
+        priority: session.priority,
+        duration: session.duration,
+        tags: session.tags,
+        notes: session.notes,
+        status: 'planned' as const,
+        // scheduledFor is intentionally omitted
+      };
+
+      await createSession(duplicateDto);
+      toast.success('Session duplicated successfully');
+    } catch (error) {
+      console.error('Failed to duplicate session:', error);
+      toast.error('Failed to duplicate session');
+    }
+  };
+
+  // Comment 7: Quick update handler for one-click actions
+  const handleQuickUpdate = async (id: string, patch: Partial<SessionResponse>) => {
+    try {
+      await updateSession(id, patch);
+    } catch (error) {
+      console.error('Failed to update session:', error);
+      throw error;
     }
   };
 
@@ -264,6 +305,8 @@ export default function DashboardPage() {
               onEdit={handleEditSession}
               onDelete={handleDeleteSession}
               onClick={handleSessionClick}
+              onDuplicate={handleDuplicateSession}
+              onQuickUpdate={handleQuickUpdate}
             />
           ))}
         </div>

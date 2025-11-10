@@ -17,9 +17,10 @@ interface SessionCardProps {
   onDelete?: (id: string) => void;
   onClick?: (session: SessionResponse) => void;
   onDuplicate?: (session: SessionResponse) => void;
+  onQuickUpdate?: (id: string, patch: Partial<SessionResponse>) => Promise<void>;
 }
 
-export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate }: SessionCardProps) {
+export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, onQuickUpdate }: SessionCardProps) {
   const confirm = useToastConfirm();
   const toast = useToast();
   const [showQuickMenu, setShowQuickMenu] = useState(false);
@@ -34,15 +35,23 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate }:
     e?.stopPropagation();
     if (onDuplicate) {
       onDuplicate(session);
-      toast.success('Session duplicated successfully');
+      // Toast is shown by the parent handler
     }
   };
 
-  const handleMarkComplete = (e?: React.MouseEvent) => {
+  const handleMarkComplete = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (onEdit) {
+    // Comment 7: Use onQuickUpdate if available for one-click persist
+    if (onQuickUpdate) {
+      try {
+        await onQuickUpdate(session.id, { status: 'completed' });
+        toast.success('Session marked as complete');
+      } catch (error) {
+        toast.error('Failed to mark session complete');
+      }
+    } else if (onEdit) {
+      // Fallback to edit modal if no quick update
       onEdit({ ...session, status: 'completed' });
-      toast.success('Session marked as complete');
     }
   };
 
