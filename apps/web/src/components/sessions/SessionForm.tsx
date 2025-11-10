@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { FileText, Save, AlertCircle, Search } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { FileText, Save, AlertCircle, Search, Clock } from 'lucide-react';
 import type { CreateSessionDto, UpdateSessionDto, SessionResponse, TemplateResponse, CreateTemplateDto } from '@repo/shared-types';
 import { SESSION_CATEGORIES, SESSION_STATUSES, SESSION_PRIORITIES } from '@repo/shared-types';
 import { TemplateModal } from './TemplateModal';
@@ -7,6 +7,9 @@ import { SessionSearchModal } from './SessionSearchModal';
 import { Tooltip } from '@/components/common/Tooltip';
 import { Button } from '@/components/common/Button';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { STORAGE_KEYS } from '@/utils/localStorage';
 import { api } from '@/services/api';
 import { validateSessionForm, validation } from '@/utils/validation';
 
@@ -33,27 +36,35 @@ function formatDateToLocalInput(date: Date): string {
 
 export function SessionForm({ session, onSubmit, onCancel, loading, initialDate, onTemplateSaved, enableTemplates = true, seedData }: SessionFormProps) {
   const toast = useToast();
-  const [formData, setFormData] = useState<{
-    title: string;
-    description: string;
-    category: 'programming' | 'school' | 'language' | 'personal' | 'other';
-    status: 'planned' | 'in_progress' | 'completed' | 'missed' | 'cancelled';
-    priority: 'low' | 'medium' | 'high' | 'urgent';
-    duration: number;
-    scheduledFor: string;
-    tags: string[];
-    notes: string;
-  }>({
+  const { user } = useAuth();
+
+  // Comment 5: User-specific draft key for create mode only
+  const draftKey = !session && user ? `${STORAGE_KEYS.DRAFT_SESSION}-${user.id}` : null;
+
+  // Comment 5: Initialize formData with default values
+  const getDefaultFormData = () => ({
     title: '',
     description: '',
-    category: 'programming',
-    status: 'planned',
-    priority: 'medium',
+    category: 'programming' as const,
+    status: 'planned' as const,
+    priority: 'medium' as const,
     duration: 60,
     scheduledFor: '',
-    tags: [],
+    tags: [] as string[],
     notes: '',
   });
+
+  const [formData, setFormData] = useState(getDefaultFormData());
+
+  // Comment 5: Auto-save draft using useLocalStorage (for create mode only)
+  const [draft, setDraft, clearDraft] = useLocalStorage(
+    draftKey || 'disabled',
+    null as typeof formData | null
+  );
+
+  // Comment 5: Track last save time for "Draft saved" indicator
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [tagInput, setTagInput] = useState('');
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -63,6 +74,7 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
+  // Comment 5: Restore draft on mount (create mode only)
   useEffect(() => {
     if (session) {
       // Edit mode: populate from existing session
@@ -96,8 +108,58 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
         ...prev,
         scheduledFor: formatDateToLocalInput(initialDate),
       }));
+    } else if (draft && draftKey) {
+      // Comment 5: Restore draft if exists and is recent (< 7 days old)
+      const draftAge = lastSaved ? Date.now() - lastSaved.getTime() : 0;
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+      if (draftAge < sevenDaysMs) {
+        setFormData(draft);
+        setLastSaved(new Date());
+        toast.info('Draft restored', {
+          action: {
+            label: 'Discard',
+            onClick: () => {
+              setFormData(getDefaultFormData());
+              if (clearDraft) clearDraft();
+              setLastSaved(null);
+            },
+          },
+        });
+      } else {
+        // Comment 5: Clear stale draft
+        if (clearDraft) clearDraft();
+      }
     }
   }, [session, initialDate, seedData]);
+
+  // Comment 5: Debounced auto-save (create mode only)
+  useEffect(() => {
+    // Only auto-save in create mode when draft key exists
+    if (!draftKey || session) return;
+
+    // Clear existing timer
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    // Don't save if form is empty
+    if (!formData.title && !formData.description && formData.tags.length === 0) {
+      return;
+    }
+
+    // Debounce: save 1s after last change
+    saveTimerRef.current = setTimeout(() => {
+      setDraft(formData);
+      setLastSaved(new Date());
+    }, 1000);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [formData, draftKey, session, setDraft]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,12 +173,38 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
 
     setValidationErrors({});
 
-    await onSubmit({
-      ...formData,
-      description: formData.description || undefined,
-      scheduledFor: formData.scheduledFor || undefined,
-      notes: formData.notes || undefined,
-    });
+    // Comment 5: Clear draft on successful submit
+    try {
+      await onSubmit({
+        ...formData,
+        description: formData.description || undefined,
+        scheduledFor: formData.scheduledFor || undefined,
+        notes: formData.notes || undefined,
+      });
+
+      // Clear draft after successful submission
+      if (draftKey && clearDraft) {
+        clearDraft();
+        setLastSaved(null);
+      }
+    } catch (error) {
+      // Don't clear draft if submission failed
+      throw error;
+    }
+  };
+
+  // Comment 5: Handle cancel with confirmation if draft exists
+  const handleCancel = () => {
+    if (draftKey && draft && (formData.title || formData.description || formData.tags.length > 0)) {
+      const confirmed = window.confirm('You have unsaved changes. Discard draft?');
+      if (!confirmed) return;
+
+      if (clearDraft) {
+        clearDraft();
+        setLastSaved(null);
+      }
+    }
+    onCancel();
   };
 
   const handleFieldChange = (field: string, value: any) => {
@@ -252,9 +340,29 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
     setIsSessionSearchModalOpen(false);
   };
 
+  // Comment 5: Format time ago for draft indicator
+  const getTimeAgo = (date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Comment 5: Draft Saved Indicator (create mode only) */}
+        {!session && draftKey && lastSaved && (
+          <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-300">
+            <Clock className="h-4 w-4" />
+            <span>Draft saved {getTimeAgo(lastSaved)}</span>
+          </div>
+        )}
+
         {/* Template Actions */}
         {enableTemplates && !session && (
           <div className="flex flex-col gap-2 mb-4">
@@ -534,7 +642,7 @@ export function SessionForm({ session, onSubmit, onCancel, loading, initialDate,
         <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4">
           <Button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={loading}
             variant="ghost"
             className="w-full sm:w-auto"
