@@ -1,5 +1,6 @@
-import { Keyboard, X } from 'lucide-react';
+import { Keyboard, X, Globe, FileText } from 'lucide-react';
 import type { KeyboardShortcut } from '@/hooks/useKeyboardShortcuts';
+import { useGlobalShortcuts } from '@/contexts/GlobalShortcutsContext';
 
 interface KeyboardShortcutsHelpProps {
   shortcuts: KeyboardShortcut[];
@@ -8,6 +9,9 @@ interface KeyboardShortcutsHelpProps {
 }
 
 export function KeyboardShortcutsHelp({ shortcuts, isOpen, onClose }: KeyboardShortcutsHelpProps) {
+  // Comment 9: Get global shortcuts
+  const { getShortcuts } = useGlobalShortcuts();
+  const globalShortcuts = getShortcuts();
 
   const formatShortcut = (shortcut: KeyboardShortcut): string => {
     const keys: string[] = [];
@@ -45,20 +49,60 @@ export function KeyboardShortcutsHelp({ shortcuts, isOpen, onClose }: KeyboardSh
 
             {/* Shortcuts List */}
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-3">
-                {shortcuts.map((shortcut, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    <span className="text-gray-700 dark:text-gray-300">
-                      {shortcut.description}
-                    </span>
-                    <kbd className="px-3 py-1.5 text-sm font-semibold text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm">
-                      {formatShortcut(shortcut)}
-                    </kbd>
+              <div className="space-y-6">
+                {/* Global Shortcuts Section */}
+                {globalShortcuts.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Globe className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                        Global Shortcuts
+                      </h3>
+                    </div>
+                    <div className="space-y-2">
+                      {globalShortcuts.map((shortcut, index) => (
+                        <div
+                          key={`global-${index}`}
+                          className="flex items-center justify-between p-3 bg-primary-50 dark:bg-primary-950 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900 transition-colors border border-primary-200 dark:border-primary-800"
+                        >
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {shortcut.description}
+                          </span>
+                          <kbd className="px-3 py-1.5 text-sm font-semibold text-primary-800 dark:text-primary-200 bg-white dark:bg-gray-800 border border-primary-300 dark:border-primary-600 rounded-lg shadow-sm">
+                            {formatShortcut(shortcut)}
+                          </kbd>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* Page-Specific Shortcuts Section */}
+                {shortcuts.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                        Page-Specific Shortcuts
+                      </h3>
+                    </div>
+                    <div className="space-y-2">
+                      {shortcuts.map((shortcut, index) => (
+                        <div
+                          key={`page-${index}`}
+                          className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                        >
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {shortcut.description}
+                          </span>
+                          <kbd className="px-3 py-1.5 text-sm font-semibold text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm">
+                            {formatShortcut(shortcut)}
+                          </kbd>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
