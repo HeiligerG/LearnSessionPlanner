@@ -332,11 +332,11 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
                     >
                       <Star className={`h-4 w-4 ${isFavoriteSession(session.id) ? 'fill-current' : ''}`} />
                     </button>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryColor(session.category)}`}>
-                      {session.category}
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryColor(session.category || 'other')}`}>
+                      {session.category || 'other'}
                     </span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(session.status)}`}>
-                      {session.status.replace('_', ' ')}
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(session.status || 'planned')}`}>
+                      {(session.status || 'planned').replace('_', ' ')}
                     </span>
                   </div>
                 </div>
@@ -356,7 +356,7 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
                   )}
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {session.duration} min
+                    {session.duration || 0} min
                   </span>
                   {session.tags && session.tags.length > 0 && (
                     <span className="flex items-center gap-1">
