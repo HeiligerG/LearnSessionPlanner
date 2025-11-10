@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Keyboard, LogOut, User } from 'lucide-react'
+import { Menu, X, Keyboard, LogOut, User, Plus } from 'lucide-react'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { useAuth } from '@/contexts/AuthContext'
+import { useGlobalShortcuts } from '@/contexts/GlobalShortcutsContext'
+import { FloatingActionButton } from '@/components/common/FloatingActionButton'
+import { Modal } from '@/components/common/Modal'
+import { SessionForm } from '@/components/sessions/SessionForm'
+import { useSessions } from '@/hooks/useSessions'
 
 export default function RootLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, logout } = useAuth()
+  const { registerShortcut, unregisterShortcut } = useGlobalShortcuts()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showQuickCreate, setShowQuickCreate] = useState(false)
+  const { createSession } = useSessions()
 
   const handleLogout = async () => {
     await logout()
@@ -45,6 +53,23 @@ export default function RootLayout() {
       document.body.style.overflow = 'unset'
     }
   }, [isMobileMenuOpen])
+
+  // Register global Ctrl+Shift+N shortcut for quick create
+  useEffect(() => {
+    if (isAuthenticated) {
+      registerShortcut('quick-create', {
+        key: 'N',
+        ctrlKey: true,
+        shiftKey: true,
+        description: 'Quick create session',
+        action: () => setShowQuickCreate(true),
+      })
+    }
+
+    return () => {
+      unregisterShortcut('quick-create')
+    }
+  }, [isAuthenticated, registerShortcut, unregisterShortcut])
 
   const navLinks = [
     { to: '/', label: 'Home' },
@@ -227,6 +252,33 @@ export default function RootLayout() {
       <main className="mx-auto w-full max-w-screen-xl flex-1 p-8 dark:bg-gray-900">
         <Outlet />
       </main>
+
+      {/* Floating Action Button for Quick Create */}
+      {isAuthenticated && location.pathname !== '/login' && location.pathname !== '/register' && (
+        <FloatingActionButton
+          onClick={() => setShowQuickCreate(true)}
+          icon={<Plus />}
+          label="Quick Create Session"
+          show={true}
+          ariaLabel="Quick create"
+        />
+      )}
+
+      {/* Quick Create Modal */}
+      <Modal
+        isOpen={showQuickCreate}
+        onClose={() => setShowQuickCreate(false)}
+        title="Quick Create"
+        size="lg"
+      >
+        <SessionForm
+          onSubmit={async (dto) => {
+            await createSession(dto)
+            setShowQuickCreate(false)
+          }}
+          onCancel={() => setShowQuickCreate(false)}
+        />
+      </Modal>
 
       <footer className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-8 py-6 text-center text-gray-600 dark:text-gray-400">
         <p>&copy; 2025 Learn Session Planner. Built with React + TypeScript + Vite.</p>

@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { AuthProvider } from './contexts/AuthContext'
+import { GlobalShortcutsProvider } from './contexts/GlobalShortcutsContext'
 import { router } from './router'
 import './index.css'
 
@@ -12,7 +13,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <GlobalShortcutsProvider>
+            <RouterProvider router={router} />
+          </GlobalShortcutsProvider>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
