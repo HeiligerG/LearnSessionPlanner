@@ -9,8 +9,10 @@ import { SessionForm } from '@/components/sessions/SessionForm';
 import { CalendarView } from '@/components/calendar/CalendarView';
 import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp';
 import { SkeletonLoader } from '@/components/common/SkeletonLoader';
+import { EmptyState } from '@/components/common/EmptyState';
 import { Modal } from '@/components/common/Modal';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { BookOpen } from 'lucide-react';
 import type { SessionResponse, SessionStatsDto } from '@repo/shared-types';
 import { api } from '@/services/api';
 
@@ -233,74 +235,89 @@ export default function DashboardPage() {
 
       {/* Statistics Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard
-            title="Total Sessions"
-            value={stats.total}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            }
-            color="primary"
-          />
-          <StatsCard
-            title="Completed"
-            value={stats.completed}
-            subtitle={`${stats.completionRate.toFixed(1)}% completion rate`}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-            color="success"
-          />
-          <StatsCard
-            title="In Progress"
-            value={stats.inProgress}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            }
-            color="info"
-          />
-          <StatsCard
-            title="Total Hours"
-            value={`${(stats.completedDuration / 60).toFixed(1)}h`}
-            subtitle={`of ${(stats.totalDuration / 60).toFixed(1)}h planned`}
-            icon={
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-            color="warning"
-          />
+        <div className="glass-card p-6 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatsCard
+              title="Total Sessions"
+              value={stats.total}
+              animateValue={true}
+              glass={true}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              }
+              color="primary"
+            />
+            <StatsCard
+              title="Completed"
+              value={stats.completed}
+              animateValue={true}
+              glass={true}
+              subtitle={`${stats.completionRate.toFixed(1)}% completion rate`}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              color="success"
+            />
+            <StatsCard
+              title="In Progress"
+              value={stats.inProgress}
+              animateValue={true}
+              glass={true}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              }
+              color="info"
+            />
+            <StatsCard
+              title="Total Hours"
+              value={`${(stats.completedDuration / 60).toFixed(1)}h`}
+              subtitle={`of ${(stats.totalDuration / 60).toFixed(1)}h planned`}
+              icon={
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              }
+              color="warning"
+            />
+          </div>
         </div>
       )}
 
-      {/* View Toggle */}
-      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => setView('calendar')}
-          className={`px-4 py-2 border-b-2 transition-colors ${
-            view === 'calendar'
-              ? 'border-primary-600 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-          }`}
-        >
-          Calendar View
-        </button>
-        <button
-          onClick={() => setView('list')}
-          className={`px-4 py-2 border-b-2 transition-colors ${
-            view === 'list'
-              ? 'border-primary-600 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-          }`}
-        >
-          List View
-        </button>
+      {/* View Toggle - Segmented Control */}
+      <div className="flex justify-center">
+        <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-full p-1 relative">
+          <div
+            className={`absolute top-1 bottom-1 bg-primary-600 rounded-full transition-all duration-300 ${
+              view === 'calendar' ? 'left-1 w-[calc(50%-0.25rem)]' : 'left-[calc(50%+0.25rem)] w-[calc(50%-0.25rem)]'
+            }`}
+          />
+          <button
+            onClick={() => setView('calendar')}
+            className={`relative px-6 py-2 rounded-full transition-colors min-h-[44px] z-10 ${
+              view === 'calendar'
+                ? 'text-white'
+                : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            Calendar View
+          </button>
+          <button
+            onClick={() => setView('list')}
+            className={`relative px-6 py-2 rounded-full transition-colors min-h-[44px] z-10 ${
+              view === 'list'
+                ? 'text-white'
+                : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            List View
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -323,44 +340,43 @@ export default function DashboardPage() {
           </button>
         </div>
       ) : sessions.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-12 text-center">
-          <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            No sessions yet
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Create your first learning session to get started
-          </p>
-          <button
-            onClick={() => setShowSessionForm(true)}
-            className="w-full sm:w-auto px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors min-h-[44px]"
-          >
-            Create First Session
-          </button>
-        </div>
-      ) : view === 'calendar' ? (
-        <CalendarView
-          sessions={sessions.filter(s => s != null)}
-          onSessionClick={handleSessionClick}
-          onDateClick={(date) => {
-            setSelectedSession(null);
-            setShowSessionForm(true);
+        <EmptyState
+          icon={BookOpen}
+          title="No sessions yet"
+          description="Create your first learning session to get started"
+          illustration="sessions"
+          action={{
+            label: 'Create First Session',
+            onClick: () => {
+              setSelectedSession(null);
+              setShowSessionForm(true);
+            },
           }}
         />
+      ) : view === 'calendar' ? (
+        <div className="glass-card p-6 rounded-lg animate-fade-in">
+          <CalendarView
+            sessions={sessions.filter(s => s != null)}
+            onSessionClick={handleSessionClick}
+            onDateClick={(date) => {
+              setSelectedSession(null);
+              setShowSessionForm(true);
+            }}
+          />
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sessions.filter(s => s != null).map((session) => (
-            <SessionCard
-              key={session.id}
-              session={session}
-              onEdit={handleEditSession}
-              onDelete={handleDeleteSession}
-              onClick={handleSessionClick}
-              onDuplicate={handleDuplicateSession}
-              onQuickUpdate={handleQuickUpdate}
-            />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+          {sessions.filter(s => s != null).map((session, index) => (
+            <div key={session.id} className={`stagger-${Math.min(index + 1, 6)}`}>
+              <SessionCard
+                session={session}
+                onEdit={handleEditSession}
+                onDelete={handleDeleteSession}
+                onClick={handleSessionClick}
+                onDuplicate={handleDuplicateSession}
+                onQuickUpdate={handleQuickUpdate}
+              />
+            </div>
           ))}
         </div>
       )}
