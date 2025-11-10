@@ -449,4 +449,201 @@
   .custom-scrollbar::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
+
+  /* File upload animations */
+  @keyframes border-pulse {
+    0%, 100% {
+      border-color: rgb(59 130 246);
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+    }
+    50% {
+      border-color: rgb(37, 99, 235);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+    }
+  }
+
+  .animate-border-pulse {
+    animation: border-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes upload-bounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0);
+    }
+    40% {
+      transform: translateY(-8px);
+    }
+    60% {
+      transform: translateY(-4px);
+    }
+  }
+
+  .animate-upload-bounce {
+    animation: upload-bounce 2s ease-in-out infinite;
+  }
+
+  @keyframes progress-fill {
+    0% {
+      width: 0%;
+    }
+    100% {
+      width: var(--progress-width, 0%);
+    }
+  }
+
+  .animate-progress-fill {
+    animation: progress-fill 0.5s ease-out forwards;
+  }
+
+  @keyframes file-appear {
+    0% {
+      opacity: 0;
+      transform: scale(0.8) translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .animate-file-appear {
+    animation: file-appear 0.3s ease-out forwards;
+  }
+
+  @keyframes success-pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.8;
+    }
+  }
+
+  .animate-success-pulse {
+    animation: success-pulse 0.5s ease-in-out;
+  }
+
+  @keyframes error-shake {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    10%, 30%, 50%, 70%, 90% {
+      transform: translateX(-4px);
+    }
+    20%, 40%, 60%, 80% {
+      transform: translateX(4px);
+    }
+  }
+
+  .animate-error-shake {
+    animation: error-shake 0.5s ease-in-out;
+  }
+
+  /* File upload zone specific styles */
+  .file-upload-zone {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .file-upload-zone:hover:not(:has(.selected-file)) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark .file-upload-zone:hover:not(:has(.selected-file)) {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Progress bar styles */
+  .progress-bar {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(229 231 235);
+  }
+
+  .dark .progress-bar {
+    background-color: rgb(55 65 81);
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, rgb(59 130 246), rgb(37 99 235));
+    transition: width 0.3s ease-out;
+    position: relative;
+  }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 100%
+    );
+    animation: progress-shimmer 2s infinite;
+  }
+
+  @keyframes progress-shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  /* File type badges */
+  .file-badge-csv {
+    @apply bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300;
+  }
+
+  .file-badge-json {
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300;
+  }
+
+  .file-badge-xml {
+    @apply bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300;
+  }
+
+  /* Import table animations */
+  @keyframes row-highlight {
+    0% {
+      background-color: rgba(59, 130, 246, 0.1);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  .animate-row-highlight {
+    animation: row-highlight 2s ease-out;
+  }
+
+  @keyframes table-row-appear {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-table-row-appear {
+    animation: table-row-appear 0.3s ease-out forwards;
+  }
+
+  .stagger-delay-1 { animation-delay: 50ms; }
+  .stagger-delay-2 { animation-delay: 100ms; }
+  .stagger-delay-3 { animation-delay: 150ms; }
+  .stagger-delay-4 { animation-delay: 200ms; }
+  .stagger-delay-5 { animation-delay: 250ms; }
+  .stagger-delay-6 { animation-delay: 300ms; }
 }

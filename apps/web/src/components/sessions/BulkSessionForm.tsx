@@ -5,9 +5,16 @@ import type {
   RecurrencePattern,
   SessionCategory,
   SessionPriority,
+  FileImportResultDto,
 } from '@repo/shared-types';
 import { SESSION_CATEGORIES, SESSION_PRIORITIES } from '@repo/shared-types';
 import { Button } from '@/components/common/Button';
+import { ProgressRing } from '@/components/common/ProgressRing';
+import FileUploadZone from './FileUploadZone';
+import ImportPreviewTable from './ImportPreviewTable';
+import { useToast } from '@/contexts/ToastContext';
+import { api } from '@/services/api';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 
 interface BulkSessionFormProps {
   onSubmit: (dto: BulkCreateSessionDto) => Promise<void>;
@@ -26,38 +33,6 @@ const EMPTY_SESSION: CreateSessionDto = {
   scheduledFor: new Date().toISOString(),
 };
 
-// Helper function to parse CSV line respecting quotes
-const parseCSVLine = (line: string): string[] => {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    const nextChar = line[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        // Escaped quote
-        current += '"';
-        i++; // Skip next quote
-      } else {
-        // Toggle quote state
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      // End of field
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  // Push last field
-  result.push(current.trim());
-  return result;
-};
 
 export function BulkSessionForm({
   onSubmit,
@@ -65,13 +40,16 @@ export function BulkSessionForm({
   loading = false,
   initialDate,
 }: BulkSessionFormProps) {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('manual');
   const [manualSessions, setManualSessions] = useState<CreateSessionDto[]>([
     { ...EMPTY_SESSION, scheduledFor: initialDate?.toISOString() || new Date().toISOString() },
   ]);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvData, setCsvData] = useState<CreateSessionDto[]>([]);
-  const [csvError, setCsvError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [importResult, setImportResult] = useState<FileImportResultDto | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [recurrenceBase, setRecurrenceBase] = useState<CreateSessionDto>({
     ...EMPTY_SESSION,
     scheduledFor: initialDate?.toISOString() || new Date().toISOString(),
@@ -84,62 +62,82 @@ export function BulkSessionForm({
   });
   const [previewSessions, setPreviewSessions] = useState<CreateSessionDto[]>([]);
 
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setCsvFile(file);
-    setCsvError(null);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        // Split by CRLF or LF, filter empty lines
-        const lines = text.split(/\r?\n/).filter((line) => line.trim());
-
-        if (lines.length < 2) {
-          setCsvError('CSV file must have at least a header row and one data row');
-          return;
-        }
-
-        const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase());
-        const parsed: CreateSessionDto[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          const values = parseCSVLine(lines[i]);
-          const session: any = {};
-
-          headers.forEach((header, index) => {
-            const value = values[index] || '';
-            // Remove surrounding quotes if present
-            const cleanValue = value.replace(/^"(.*)"$/, '$1');
-
-            if (header === 'title') session.title = cleanValue;
-            else if (header === 'category') session.category = cleanValue;
-            else if (header === 'duration') session.duration = parseInt(cleanValue, 10);
-            else if (header === 'scheduledfor') session.scheduledFor = cleanValue;
-            else if (header === 'priority') session.priority = cleanValue;
-            else if (header === 'description') session.description = cleanValue;
-            else if (header === 'tags') session.tags = cleanValue ? cleanValue.split(';') : [];
-          });
-
-          if (!session.title || !session.category || !session.duration) {
-            setCsvError(`Row ${i + 1}: Missing required fields (title, category, duration)`);
-            return;
-          }
-
-          parsed.push(session as CreateSessionDto);
-        }
-
-        setCsvData(parsed);
-      } catch (err) {
-        setCsvError(`Failed to parse CSV file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  // New file upload functions
+  const handleFileSelect = useCallback(async (file: File) => {
+    setSelectedFile(file);
+    setIsUploading(true);
+    setUploadStatus('uploading');
+    setUploadProgress(0);
+    
+    const toastId = toast.loading('Uploading and parsing file...');
+    
+    try {
+      const response = await api.sessions.importFile(file, (progress) => {
+        setUploadProgress(progress);
+      });
+      
+      if (response.data) {
+        setImportResult(response.data);
+        setUploadStatus('success');
+        toast.success(`Parsed successfully: ${response.data.summary.successfulRows} valid, ${response.data.summary.failedRows} errors`);
       }
-    };
+    } catch (error: any) {
+      setUploadStatus('error');
+      setUploadProgress(0);
+      toast.error(`Upload failed: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [toast]);
 
-    reader.readAsText(file);
+  const handleImportValid = useCallback(async () => {
+    if (!importResult) return;
+    
+    const validRows = importResult.rows.filter(row => 
+      row.status === 'success' || row.status === 'warning'
+    );
+    
+    if (validRows.length === 0) {
+      toast.error('No valid sessions to import');
+      return;
+    }
+
+    try {
+      await onSubmit({
+        sessions: validRows.map(row => row.session)
+      });
+      
+      toast.success(`Successfully imported ${validRows.length} sessions`);
+      setImportResult(null);
+      setSelectedFile(null);
+      setUploadStatus('idle');
+    } catch (error) {
+      // Error handled by parent component
+    }
+  }, [importResult, onSubmit, toast]);
+
+  const handleClear = useCallback(() => {
+    setImportResult(null);
+    setSelectedFile(null);
+    setUploadStatus('idle');
+    setUploadProgress(0);
   }, []);
+
+  const downloadSample = useCallback(async (format: 'csv' | 'json' | 'xml') => {
+    try {
+      const blob = await api.sessions.downloadSample(format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sessions-sample.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${format.toUpperCase()} sample file`);
+    } catch (error: any) {
+      toast.error(`Download failed: ${error.message}`);
+    }
+  }, [toast]);
+
 
   const generateRecurrencePreview = useCallback(() => {
     const preview: CreateSessionDto[] = [];
@@ -204,8 +202,16 @@ export function BulkSessionForm({
 
     if (activeTab === 'manual') {
       dto = { sessions: manualSessions };
+    } else if (activeTab === 'csv' && importResult) {
+      // Use the modern file import workflow
+      const validRows = importResult.rows.filter(row => 
+        row.status === 'success' || row.status === 'warning'
+      );
+      dto = { sessions: validRows.map(row => row.session) };
     } else if (activeTab === 'csv') {
-      dto = { sessions: csvData };
+      // Fallback: no valid sessions to import
+      toast.error('No valid sessions to import');
+      return;
     } else {
       dto = { sessions: [recurrenceBase], recurrence: recurrencePattern };
     }
@@ -238,7 +244,7 @@ export function BulkSessionForm({
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            CSV Import
+            File Import
           </button>
           <button
             type="button"
@@ -346,64 +352,122 @@ export function BulkSessionForm({
         </div>
       )}
 
-      {/* CSV Import Tab */}
+      {/* File Import Tab */}
       {activeTab === 'csv' && (
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Upload CSV File
-            </label>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="block w-full text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md"
-            />
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              CSV format: title,category,duration,scheduledFor,priority,description,tags
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-500">
-              Valid categories: {SESSION_CATEGORIES.join(', ')}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-500">
-              Example: "Math Study,school,60,2025-01-15T10:00:00Z,high,Algebra review,math;algebra"
-            </p>
-          </div>
-          {csvError && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-              <p className="text-red-800 dark:text-red-200">{csvError}</p>
-            </div>
-          )}
-          {csvData.length > 0 && (
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Preview ({csvData.length} sessions):
-              </p>
-              <div className="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Title</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Category</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Duration</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                    {csvData.slice(0, 5).map((session, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{session.title}</td>
-                        <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{session.category}</td>
-                        <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{session.duration}m</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {csvData.length > 5 && (
-                  <p className="p-2 text-sm text-gray-500 dark:text-gray-400">... and {csvData.length - 5} more</p>
-                )}
+          {/* File Upload Zone */}
+          <FileUploadZone 
+            onFileSelect={handleFileSelect} 
+            accept=".csv,.json,.xml" 
+            maxSize={5*1024*1024} 
+            disabled={isUploading || loading} 
+          />
+
+          {/* Upload Progress Visualization */}
+          {isUploading && (
+            <div 
+              className="glass-card p-6 text-center space-y-4 rounded-xl border border-primary-200 dark:border-primary-800 transition-opacity duration-300" 
+              aria-live="polite" 
+              role="status"
+            >
+              <ProgressRing 
+                size="lg" 
+                progress={uploadProgress} 
+                strokeWidth={6} 
+                color={uploadStatus === 'error' ? 'danger' : 'primary'} 
+                animated 
+                showPercentage 
+                label="Uploading and parsing file..." 
+              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Uploading and parsing your file</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{uploadProgress}% complete</p>
+              </div>
+              {uploadStatus === 'error' && (
+                <div className="flex items-center justify-center gap-3 text-red-600 dark:text-red-400 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <AlertCircle className="w-5 h-5" aria-hidden="true"/>
+                  <span className="text-sm">Upload failed. Please check your file and try again.</span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      setUploadStatus('idle'); 
+                      setImportResult(null); 
+                      setSelectedFile(null);
+                    }} 
+                    className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+              <div className="flex justify-center">
+                <div className="w-24 bg-gray-200 rounded-full h-1.5 dark:bg-gray-700 overflow-hidden">
+                  <div 
+                    className={`h-1.5 rounded-full transition-all duration-300 ${uploadStatus === 'error' ? 'bg-red-500' : 'bg-primary-500 animate-pulse'}`} 
+                    style={{width: `${uploadProgress}%`}} 
+                  />
+                </div>
               </div>
             </div>
           )}
+
+          {/* Success State */}
+          {uploadStatus === 'success' && !importResult && (
+            <div className="glass-card p-4 text-center animate-success-pulse mt-4">
+              <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2 animate-pulse"/>
+              <p className="text-green-600 dark:text-green-400">Parsing complete!</p>
+            </div>
+          )}
+
+          {/* Import Preview Table */}
+          {importResult && (
+            <div className="space-y-4">
+              <ImportPreviewTable 
+                rows={importResult.rows} 
+                onRemoveRow={(rowNum) => setImportResult(prev => ({
+                  ...prev!, 
+                  rows: prev!.rows.filter(r => r.rowNumber !== rowNum)
+                }))} 
+              />
+              
+              {/* Action Buttons */}
+              <div className="flex gap-3 justify-end mt-4">
+                <Button 
+                  variant="primary" 
+                  onClick={handleImportValid} 
+                  disabled={!importResult || importResult.rows.filter(r => r.status !== 'error').length === 0}
+                >
+                  Import Valid Sessions ({importResult.rows.filter(r => r.status !== 'error').length})
+                </Button>
+                <Button variant="ghost" onClick={handleClear}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Sample Files */}
+          <div className="glass-card p-4 mt-4">
+            <h3 className="font-medium mb-3">Sample Files</h3>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="secondary" size="sm" onClick={() => downloadSample('csv')}>
+                CSV
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => downloadSample('json')}>
+                JSON
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => downloadSample('xml')}>
+                XML
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Supported: CSV, JSON, XML. Max 5MB.</p>
+          </div>
+
+          {/* Format Info */}
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            Supported formats: <span className="font-mono text-green-600">CSV</span>, <span className="font-mono text-yellow-600">JSON</span>, <span className="font-mono text-blue-600">XML</span>
+          </p>
         </div>
       )}
 
@@ -611,7 +675,7 @@ export function BulkSessionForm({
         </Button>
         <Button
           type="submit"
-          disabled={loading || (activeTab === 'csv' && csvData.length === 0)}
+          disabled={loading || (activeTab === 'csv' && (!importResult || importResult.rows.filter(r => r.status !== 'error').length === 0))}
           variant="primary"
           loading={loading}
         >

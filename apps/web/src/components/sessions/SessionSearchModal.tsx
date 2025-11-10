@@ -36,7 +36,7 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
 
   // Comment 3: Use recent sessions and favorites
   const { recentSessions, addRecentSession } = useRecentSessions();
-  const { isFavorite, toggleFavorite } = useFavorites('sessions');
+  const { isFavoriteSession, toggleFavoriteSession } = useFavorites();
 
   // Comment 3: Load all sessions on mount for fuzzy search
   useEffect(() => {
@@ -51,7 +51,14 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
       setLoading(true);
       try {
         const response = await api.sessions.getAll();
-        setAllSessions(response.data || []);
+        // Ensure we always set an array, even if response.data is null/undefined
+        const sessions = response?.data;
+        if (Array.isArray(sessions)) {
+          setAllSessions(sessions);
+        } else {
+          console.warn('API response is not an array:', sessions);
+          setAllSessions([]);
+        }
       } catch (error) {
         console.error('Failed to load sessions:', error);
         setAllSessions([]);
@@ -86,7 +93,7 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
   // Comment 3: Toggle favorite without closing modal
   const handleToggleFavorite = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    toggleFavorite(sessionId);
+    toggleFavoriteSession(sessionId);
   };
 
   // Comment 3: Keyboard navigation
@@ -125,11 +132,11 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
       return recentSessions;
     }
     if (activeSection === 'favorites') {
-      return allSessions.filter((session) => isFavorite(session.id));
+      return allSessions.filter((session) => isFavoriteSession(session.id));
     }
     // Search section
     if (searchQuery.trim()) {
-      return fuzzyResults;
+      return fuzzyResults.results.map(result => result.item);
     }
     return [];
   };
@@ -317,13 +324,13 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
                     <button
                       onClick={(e) => handleToggleFavorite(e, session.id)}
                       className={`p-1 rounded transition-colors ${
-                        isFavorite(session.id)
+                        isFavoriteSession(session.id)
                           ? 'text-yellow-500 hover:text-yellow-600'
                           : 'text-gray-400 hover:text-yellow-500'
                       }`}
-                      aria-label={isFavorite(session.id) ? 'Remove from favorites' : 'Add to favorites'}
+                      aria-label={isFavoriteSession(session.id) ? 'Remove from favorites' : 'Add to favorites'}
                     >
-                      <Star className={`h-4 w-4 ${isFavorite(session.id) ? 'fill-current' : ''}`} />
+                      <Star className={`h-4 w-4 ${isFavoriteSession(session.id) ? 'fill-current' : ''}`} />
                     </button>
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryColor(session.category)}`}>
                       {session.category}

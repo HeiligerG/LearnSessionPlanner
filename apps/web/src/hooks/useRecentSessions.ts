@@ -6,19 +6,11 @@ import { STORAGE_KEYS } from '@/utils/localStorage';
 const MAX_RECENT_SESSIONS = 10;
 
 /**
- * Minimal session data for recent sessions list
- */
-type RecentSession = Pick<
-  SessionResponse,
-  'id' | 'title' | 'description' | 'category' | 'scheduledFor' | 'tags'
->;
-
-/**
  * Hook for managing recent sessions list
  * Stores up to 10 most recently viewed/edited sessions in localStorage
  */
 export function useRecentSessions() {
-  const [recentSessions, setRecentSessions, clearStorage] = useLocalStorage<RecentSession[]>(
+  const [recentSessions, setRecentSessions, clearStorage] = useLocalStorage<SessionResponse[]>(
     STORAGE_KEYS.RECENT_SESSIONS,
     []
   );
@@ -32,21 +24,11 @@ export function useRecentSessions() {
   const addRecentSession = useCallback(
     (session: SessionResponse) => {
       setRecentSessions((prev) => {
-        // Create minimal session object
-        const recentSession: RecentSession = {
-          id: session.id,
-          title: session.title,
-          description: session.description,
-          category: session.category,
-          scheduledFor: session.scheduledFor,
-          tags: session.tags,
-        };
-
         // Remove existing entry if present
         const filtered = prev.filter((s) => s.id !== session.id);
 
         // Add to beginning and trim to max
-        return [recentSession, ...filtered].slice(0, MAX_RECENT_SESSIONS);
+        return [session, ...filtered].slice(0, MAX_RECENT_SESSIONS);
       });
     },
     [setRecentSessions]

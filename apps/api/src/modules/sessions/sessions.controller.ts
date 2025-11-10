@@ -11,8 +11,16 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   BadRequestException,
+  UseInterceptors,
+  UploadedFile,
+  Res,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Response } from 'express';
+import type { Express } from 'express';
 import { SessionsService } from './sessions.service';
+import { FileParserService } from './file-parser.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import type {
@@ -27,11 +35,16 @@ import type {
   TrendDataPoint,
   BulkCreateSessionDto,
   BulkCreateResult,
+  FileImportResultDto,
 } from '@repo/shared-types';
+import { SessionCategory } from '@repo/shared-types';
 
 @Controller('sessions')
 export class SessionsController {
-  constructor(private readonly sessionsService: SessionsService) {}
+  constructor(
+    private readonly sessionsService: SessionsService,
+    private readonly fileParserService: FileParserService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -303,6 +316,226 @@ export class SessionsController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     await this.sessionsService.delete(id, userId);
+  }
+
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (_, file, cb) => {
+      const allowedMimes = ['text/csv', 'application/json', 'text/xml', 'application/xml'];
+      const allowedExtensions = /\.(csv|json|xml)$/;
+      
+      if (allowedMimes.includes(file.mimetype) || file.originalname.match(allowedExtensions)) {
+        cb(null, true);
+      } else {
+        cb(new BadRequestException('Only CSV, JSON, and XML files are allowed'), false);
+      }
+    }
+  }))
+  async importSessions(
+    @CurrentUser('sub') _userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ApiResponse<FileImportResultDto>> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Read file content - ensure buffer exists
+    if (!file.buffer) {
+      throw new BadRequestException('File buffer is not available');
+    }
+    const content = file.buffer.toString('utf-8');
+    if (!content.trim()) {
+      throw new BadRequestException('File is empty');
+    }
+
+    let parsedRows: any[] = [];
+
+    // Determine file type using both extension and mimetype (Comment 4)
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    const mime = file.mimetype;
+    
+    // Prefer extension when mimetype is not recognized
+    const recognizedMimes = ['text/csv', 'application/json', 'text/xml', 'application/xml'];
+    let fileType = '';
+    
+    if (recognizedMimes.includes(mime)) {
+      fileType = mime;
+    } else {
+      // Fall back to extension-based detection
+      switch (ext) {
+        case 'csv':
+          fileType = 'csv';
+          break;
+        case 'json':
+          fileType = 'json';
+          break;
+        case 'xml':
+          fileType = 'xml';
+          break;
+        default:
+          throw new BadRequestException('Unsupported file format');
+      }
+    }
+    
+    try {
+      if (fileType === 'text/csv' || fileType === 'csv') {
+        parsedRows = this.fileParserService.parseCSV(content);
+      } else if (fileType === 'application/json' || fileType === 'json') {
+        parsedRows = this.fileParserService.parseJSON(content);
+      } else if (fileType === 'text/xml' || fileType === 'application/xml' || fileType === 'xml') {
+        parsedRows = await this.fileParserService.parseXML(content);
+      } else {
+        throw new BadRequestException('Unsupported file format');
+      }
+    } catch (error: any) {
+      throw new BadRequestException(`File parsing failed: ${error.message}`);
+    }
+
+    // Build response with detailed results (Comment 3 - preview-first workflow)
+    const successfulRows = parsedRows.filter(row => row.status === 'success');
+    const failedRows = parsedRows.filter(row => row.status === 'error');
+    const warningRows = parsedRows.filter(row => row.status === 'warning');
+    const duplicateRows = parsedRows.filter(row => row.isDuplicate);
+
+    const result: FileImportResultDto = {
+      summary: {
+        totalRows: parsedRows.length,
+        successfulRows: successfulRows.length,
+        failedRows: failedRows.length,
+        duplicateRows: duplicateRows.length,
+        warningRows: warningRows.length,
+      },
+      rows: parsedRows,
+      errors: failedRows.flatMap(row => row.errors),
+    };
+
+    const successMessage = `File parsing completed: ${successfulRows.length} parsed successfully, ${failedRows.length} failed to parse, ${warningRows.length} with warnings, ${duplicateRows.length} duplicates found`;
+
+    return {
+      success: true,
+      message: successMessage,
+      data: result,
+    };
+  }
+
+  @Public()
+  @Get('sample/:format')
+  async downloadSample(
+    @Param('format') format: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const validFormats = ['csv', 'json', 'xml'];
+    if (!validFormats.includes(format)) {
+      throw new BadRequestException(`Invalid format. Must be one of: ${validFormats.join(', ')}`);
+    }
+
+    // Sample data with valid SessionCategory enum values (Comment 5)
+    const sampleSessions = [
+      {
+        title: 'Learn React Fundamentals',
+        description: 'Study React components, state, and props',
+        category: SessionCategory.PROGRAMMING,
+        status: 'planned',
+        priority: 'high',
+        duration: 120,
+        color: '#61dafb',
+        tags: ['react', 'javascript', 'frontend'],
+        notes: 'Focus on hooks and functional components',
+        scheduledFor: '2025-01-15T10:00:00Z',
+      },
+      {
+        title: 'French Language Practice',
+        description: 'Practice French vocabulary and grammar',
+        category: SessionCategory.LANGUAGE,
+        status: 'planned',
+        priority: 'medium',
+        duration: 90,
+        color: '#ff6b6b',
+        tags: ['french', 'language', 'vocabulary'],
+        notes: 'Use language learning app',
+        scheduledFor: '2025-01-16T14:00:00Z',
+      },
+      {
+        title: 'Personal Development Reading',
+        description: 'Read personal development book',
+        category: SessionCategory.PERSONAL,
+        status: 'planned',
+        priority: 'low',
+        duration: 60,
+        color: '#4ecdc4',
+        tags: ['reading', 'personal-growth'],
+        notes: 'Take notes on key insights',
+        scheduledFor: '2025-01-17T16:00:00Z',
+      }
+    ];
+
+    let content = '';
+    let contentType = '';
+    let filename = '';
+
+    switch (format) {
+      case 'csv':
+        // CSV header
+        content = 'title,description,category,status,priority,duration,color,tags,notes,scheduledFor\n';
+        // CSV data rows
+        sampleSessions.forEach(session => {
+          const row = [
+            `"${session.title}"`,
+            `"${session.description}"`,
+            session.category,
+            session.status,
+            session.priority,
+            session.duration,
+            session.color,
+            `"${session.tags.join(',')}"`,
+            `"${session.notes}"`,
+            session.scheduledFor
+          ].join(',');
+          content += row + '\n';
+        });
+        contentType = 'text/csv';
+        filename = 'sessions-sample.csv';
+        break;
+
+      case 'json':
+        content = JSON.stringify(sampleSessions, null, 2);
+        contentType = 'application/json';
+        filename = 'sessions-sample.json';
+        break;
+
+      case 'xml':
+        content = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        content += '<sessions>\n';
+        sampleSessions.forEach(session => {
+          content += '  <session>\n';
+          content += `    <title>${session.title}</title>\n`;
+          content += `    <description>${session.description}</description>\n`;
+          content += `    <category>${session.category}</category>\n`;
+          content += `    <status>${session.status}</status>\n`;
+          content += `    <priority>${session.priority}</priority>\n`;
+          content += `    <duration>${session.duration}</duration>\n`;
+          content += `    <color>${session.color}</color>\n`;
+          content += '    <tags>\n';
+          session.tags.forEach(tag => {
+            content += `      <tag>${tag}</tag>\n`;
+          });
+          content += '    </tags>\n';
+          content += `    <notes>${session.notes}</notes>\n`;
+          content += `    <scheduledFor>${session.scheduledFor}</scheduledFor>\n`;
+          content += '  </session>\n';
+        });
+        content += '</sessions>';
+        contentType = 'application/xml';
+        filename = 'sessions-sample.xml';
+        break;
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
   }
 
   @Public()

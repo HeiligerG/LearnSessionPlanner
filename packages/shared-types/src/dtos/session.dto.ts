@@ -264,3 +264,35 @@ export interface TemplateQuery extends TemplateFilters, PaginationQuery {}
  * Templates list response (paginated)
  */
 export type TemplatesListResponse = PaginatedResponse<TemplateResponse>;
+
+/**
+ * File import result DTO
+ */
+export interface FileImportResultDto {
+  summary: {
+    totalRows: number;
+    successfulRows: number;
+    failedRows: number;
+    duplicateRows: number;
+    warningRows: number;
+  };
+  rows: ParsedSessionRowDto[];
+  errors: string[];
+}
+
+/**
+ * Parsed session row DTO
+ */
+export interface ParsedSessionRowDto {
+  rowNumber: number;
+  session: CreateSessionDto;
+  status: 'success' | 'warning' | 'error';
+  errors: string[];
+  warnings: string[];
+  isDuplicate: boolean;
+}
+
+/**
+ * Sample file format type
+ */
+export type SampleFileFormat = 'csv' | 'json' | 'xml';

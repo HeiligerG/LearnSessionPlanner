@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import Fuse from 'fuse.js';
+import Fuse, { FuseResult, IFuseOptions } from 'fuse.js';
 
 const MAX_RESULTS = 50;
 const SEARCH_DEBOUNCE_MS = 200;
@@ -9,30 +9,38 @@ const SEARCH_DEBOUNCE_MS = 200;
  * Includes debouncing and optimized Fuse instance creation
  */
 export function useFuzzySearch<T>(
-  items: T[],
+  items: T[] | null | undefined,
   query: string,
-  options: Fuse.IFuseOptions<T>
+  options: IFuseOptions<T>
 ) {
-  const [results, setResults] = useState<Fuse.FuseResult<T>[]>([]);
+  const [results, setResults] = useState<FuseResult<T>[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  // Ensure items is always an array to prevent slice() errors
+  const safeItems = useMemo(() => {
+    if (!items || !Array.isArray(items)) {
+      return [];
+    }
+    return items;
+  }, [items]);
 
   // Create Fuse instance only when items or options change (2025 best practice)
   const fuse = useMemo(() => {
-    const defaultOptions: Fuse.IFuseOptions<T> = {
+    const defaultOptions: IFuseOptions<T> = {
       includeScore: true,
       includeMatches: true,
       threshold: 0.3,
       ignoreLocation: true,
       ...options,
     };
-    return new Fuse(items, defaultOptions);
-  }, [items, options]);
+    return new Fuse(safeItems, defaultOptions);
+  }, [safeItems, options]);
 
   // Perform search with debouncing
   useEffect(() => {
     // If query is empty, return all items
     if (!query.trim()) {
-      const allResults: Fuse.FuseResult<T>[] = items.slice(0, MAX_RESULTS).map((item, index) => ({
+      const allResults: FuseResult<T>[] = safeItems.slice(0, MAX_RESULTS).map((item, index) => ({
         item,
         refIndex: index,
         score: 0,
@@ -55,7 +63,7 @@ export function useFuzzySearch<T>(
       clearTimeout(timeoutId);
       setIsSearching(false);
     };
-  }, [query, fuse, items]);
+  }, [query, fuse, safeItems]);
 
   return { results, isSearching };
 }

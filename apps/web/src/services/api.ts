@@ -29,6 +29,7 @@ import type {
   TemplateResponse,
   TemplatesListResponse,
   TemplateFilters,
+  FileImportResultDto,
 } from '@repo/shared-types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
@@ -206,6 +207,87 @@ async function request<T>(
       0
     )
   }
+}
+
+/**
+ * File upload with progress support
+ */
+export async function uploadFile<T>(
+  endpoint: string,
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<T> {
+  const url = `${API_URL}${endpoint}`
+
+  // Ensure CSRF token for file upload
+  await ensureCsrfToken()
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+
+    // Set up progress tracking
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const progress = (event.loaded / event.total) * 100
+          onProgress(Math.round(progress))
+        }
+      })
+    }
+
+    // Handle response
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const response = JSON.parse(xhr.responseText)
+          resolve(response)
+        } catch (error) {
+          reject(new ApiError('Failed to parse response', xhr.status))
+        }
+      } else {
+        try {
+          const errorData = JSON.parse(xhr.responseText)
+          reject(new ApiError(
+            errorData.message || `HTTP ${xhr.status}: ${xhr.statusText}`,
+            xhr.status,
+            errorData
+          ))
+        } catch {
+          reject(new ApiError(
+            `HTTP ${xhr.status}: ${xhr.statusText}`,
+            xhr.status
+          ))
+        }
+      }
+    })
+
+    // Handle errors
+    xhr.addEventListener('error', () => {
+      reject(new ApiError('Network error', 0))
+    })
+
+    xhr.addEventListener('abort', () => {
+      reject(new ApiError('Request aborted', 0))
+    })
+
+    // Prepare form data
+    const formData = new FormData()
+    formData.append('file', file)
+
+    // Open and send request
+    xhr.open('POST', url)
+    
+    // Set headers
+    if (accessToken) {
+      xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`)
+    }
+    if (csrfToken) {
+      xhr.setRequestHeader('X-CSRF-Token', csrfToken)
+    }
+    
+    xhr.withCredentials = true // Include cookies
+    xhr.send(formData)
+  })
 }
 
 /**
@@ -439,6 +521,48 @@ export const api = {
       params.append('q', query)
 
       return apiClient.get<ApiResponse<SessionResponse[]>>(`/sessions/search?${params.toString()}`)
+    },
+
+    /**
+     * Import sessions from file (CSV, JSON, XML)
+     */
+    importFile(file: File, onProgress?: (progress: number) => void): Promise<ApiResponse<FileImportResultDto>> {
+      return uploadFile<ApiResponse<FileImportResultDto>>('/sessions/import', file, onProgress)
+    },
+
+    /**
+     * Download sample file
+     */
+    async downloadSample(format: 'csv' | 'json' | 'xml'): Promise<Blob> {
+      const url = `${API_URL}/sessions/sample/${format}`
+      
+      // Ensure CSRF token
+      await ensureCsrfToken()
+
+      const headers: Record<string, string> = {}
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
+      }
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new ApiError(
+          errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          errorData
+        )
+      }
+
+      return await response.blob()
     },
   },
 
