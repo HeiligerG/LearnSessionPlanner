@@ -11,6 +11,8 @@ export interface ModalProps {
   showCloseButton?: boolean;
   closeOnBackdropClick?: boolean;
   closeOnEsc?: boolean;
+  /** Enable glassmorphism effect */
+  glass?: boolean;
 }
 
 const Modal = ({
@@ -22,6 +24,7 @@ const Modal = ({
   showCloseButton = true,
   closeOnBackdropClick = true,
   closeOnEsc = true,
+  glass = false,
 }: ModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -110,11 +113,26 @@ const Modal = ({
     }
   };
 
+  const modalClasses = glass
+    ? `${sizeClasses[size]} w-full glass-strong rounded-lg shadow-2xl border border-white/20 max-h-[90vh] overflow-hidden flex flex-col animate-scale-in`
+    : `${sizeClasses[size]} w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in`;
+
+  const headerClasses = glass
+    ? 'flex items-center justify-between p-6 border-b border-white/20'
+    : 'flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700';
+
+  const closeButtonClasses = glass
+    ? 'ml-auto p-2 rounded-lg hover:bg-white/10 text-gray-100 dark:text-gray-200 transition-all duration-200 hover:scale-110 active:scale-95 touch-target'
+    : 'ml-auto p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-all duration-200 hover:scale-110 active:scale-95 touch-target';
+
   return createPortal(
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-fade-in"
+        className={glass
+          ? 'fixed inset-0 z-50 bg-black/60 backdrop-blur-md animate-fade-in'
+          : 'fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-fade-in'
+        }
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
@@ -130,15 +148,18 @@ const Modal = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? 'modal-title' : undefined}
-          className={`${sizeClasses[size]} w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in`}
+          className={modalClasses}
         >
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className={headerClasses}>
               {title && (
                 <h2
                   id="modal-title"
-                  className="text-xl font-semibold text-gray-900 dark:text-white"
+                  className={glass
+                    ? 'text-xl font-semibold text-white drop-shadow-md'
+                    : 'text-xl font-semibold text-gray-900 dark:text-white'
+                  }
                 >
                   {title}
                 </h2>
@@ -146,7 +167,7 @@ const Modal = ({
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  className="ml-auto p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+                  className={closeButtonClasses}
                   aria-label="Close modal"
                 >
                   <X className="w-5 h-5" />

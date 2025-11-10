@@ -7,6 +7,8 @@ import {
   getSessionDuration
 } from '@/utils/sessionUtils';
 import { getCategoryIconComponent } from '@/utils/iconUtils';
+import { getCategoryStyle } from '@/utils/categoryStyles';
+import { triggerCelebration } from '@/utils/animations';
 import { useToastConfirm, useToast } from '@/contexts/ToastContext';
 import { QuickActionMenu, type QuickAction } from '@/components/common/QuickActionMenu';
 import { Copy, Check, Calendar, MoreVertical } from 'lucide-react';
@@ -25,6 +27,7 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
   const toast = useToast();
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // Guard against undefined session
   if (!session) {
@@ -46,6 +49,10 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
       try {
         await onQuickUpdate(session.id, { status: 'completed' });
         toast.success('Session marked as complete');
+        // Trigger celebration animation
+        if (cardRef.current) {
+          triggerCelebration(cardRef.current);
+        }
       } catch (error) {
         toast.error('Failed to mark session complete');
       }
@@ -89,17 +96,19 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
                       'border-l-primary-500';
 
   const CategoryIcon = getCategoryIconComponent(session.category);
+  const categoryStyle = getCategoryStyle(session.category);
 
   return (
     <div
-      className={`rounded-lg border-l-4 ${statusColor} bg-white dark:bg-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer`}
+      ref={cardRef}
+      className={`rounded-lg border-l-4 ${statusColor} bg-white dark:bg-gray-800 p-4 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-[1.01] active:scale-[0.99] animate-slide-up`}
       onClick={() => onClick?.(session)}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
-              <CategoryIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <div className={`p-2 ${categoryStyle.iconBg} rounded-lg animate-scale-in`}>
+              <CategoryIcon className={`w-4 h-4 ${categoryStyle.iconColor}`} />
             </div>
             <h3 className="font-semibold text-gray-900 dark:text-white">
               {session.title}
@@ -154,7 +163,7 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
               e.stopPropagation();
               setShowQuickMenu(!showQuickMenu);
             }}
-            className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target"
             title="More Actions (Ctrl+D for duplicate)"
           >
             <MoreVertical className="w-5 h-5" />
@@ -165,7 +174,7 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
                 e.stopPropagation();
                 onEdit(session);
               }}
-              className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target"
               title="Edit"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,7 +191,7 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
                   onDelete(session.id);
                 }
               }}
-              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 hover:scale-110 active:scale-95 rounded-lg touch-target"
               title="Delete"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

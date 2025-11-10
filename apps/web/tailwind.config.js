@@ -22,6 +22,32 @@ export default {
           950: '#1e1b4b',
           DEFAULT: '#4f46e5',
         },
+        // Category colors
+        'category-school': {
+          light: '#60a5fa',
+          DEFAULT: '#3b82f6',
+          dark: '#2563eb',
+        },
+        'category-programming': {
+          light: '#a78bfa',
+          DEFAULT: '#8b5cf6',
+          dark: '#7c3aed',
+        },
+        'category-language': {
+          light: '#4ade80',
+          DEFAULT: '#22c55e',
+          dark: '#16a34a',
+        },
+        'category-personal': {
+          light: '#fb923c',
+          DEFAULT: '#f97316',
+          dark: '#ea580c',
+        },
+        'category-other': {
+          light: '#9ca3af',
+          DEFAULT: '#6b7280',
+          dark: '#4b5563',
+        },
         // Status colors
         success: {
           light: '#86efac',
@@ -114,6 +140,11 @@ export default {
         'bounce-subtle': 'bounceSubtle 0.5s ease-in-out',
         'pulse-subtle': 'pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'shimmer': 'shimmer 2s infinite',
+        'gradient-x': 'gradientX 3s ease infinite',
+        'float': 'float 3s ease-in-out infinite',
+        'wiggle': 'wiggle 0.5s ease-in-out',
+        'glow-pulse': 'glowPulse 2s ease-in-out infinite',
+        'celebrate': 'celebrate 0.6s ease-in-out',
       },
       keyframes: {
         fadeIn: {
@@ -156,6 +187,43 @@ export default {
           '0%': { backgroundPosition: '-1000px 0' },
           '100%': { backgroundPosition: '1000px 0' },
         },
+        gradientX: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        wiggle: {
+          '0%, 100%': { transform: 'rotate(0deg)' },
+          '25%': { transform: 'rotate(-3deg)' },
+          '75%': { transform: 'rotate(3deg)' },
+        },
+        glowPulse: {
+          '0%, 100%': { boxShadow: '0 0 20px rgba(99, 102, 241, 0.3)' },
+          '50%': { boxShadow: '0 0 30px rgba(99, 102, 241, 0.6)' },
+        },
+        celebrate: {
+          '0%': { transform: 'scale(1) rotate(0deg)' },
+          '25%': { transform: 'scale(1.1) rotate(-5deg)' },
+          '50%': { transform: 'scale(1.2) rotate(5deg)' },
+          '75%': { transform: 'scale(1.1) rotate(-5deg)' },
+          '100%': { transform: 'scale(1) rotate(0deg)' },
+        },
+      },
+      backgroundSize: {
+        'auto': 'auto',
+        'cover': 'cover',
+        'contain': 'contain',
+        '200%': '200% 200%',
+      },
+      backdropBlur: {
+        xs: '2px',
+        sm: '4px',
+        md: '12px',
+        lg: '16px',
+        xl: '24px',
       },
       transitionDuration: {
         fast: '150ms',
