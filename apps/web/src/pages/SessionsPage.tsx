@@ -99,8 +99,27 @@ const SessionsPage: React.FC = () => {
         description: 'Duplicate selected session',
         action: () => {
           if (lastInteractedSession) {
-            handleDuplicateSession(lastInteractedSession);
-            setLastInteractedSession(null);
+            // Duplicate the session
+            const duplicateDto = {
+              title: lastInteractedSession.title,
+              description: lastInteractedSession.description,
+              category: lastInteractedSession.category,
+              priority: lastInteractedSession.priority,
+              duration: lastInteractedSession.duration,
+              tags: lastInteractedSession.tags,
+              notes: lastInteractedSession.notes,
+              status: 'planned' as const,
+            };
+
+            createSession(duplicateDto)
+              .then(() => {
+                toast.success('Session duplicated successfully');
+                setLastInteractedSession(null);
+              })
+              .catch((error) => {
+                console.error('Failed to duplicate session:', error);
+                toast.error('Failed to duplicate session');
+              });
           } else {
             toast.warning('No session selected. Click a session first.');
           }
@@ -111,7 +130,7 @@ const SessionsPage: React.FC = () => {
     return () => {
       unregisterShortcut('duplicate-session');
     };
-  }, [sessions.length, lastInteractedSession, registerShortcut, unregisterShortcut]);
+  }, [sessions.length, lastInteractedSession, registerShortcut, unregisterShortcut, createSession, toast]);
 
   // Apply filters, search, and sort
   const processedSessions = useMemo(() => {
