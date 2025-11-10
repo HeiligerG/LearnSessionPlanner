@@ -1,0 +1,479 @@
+# Cline Rules - Learn Session Planner
+
+> **Purpose:** Define how Cline (Claude Code) should operate within this project, including collaboration with Traycer, memory bank usage, coding standards, and safety rules.
+
+---
+
+## 1. Rolle von Traycer vs. Cline
+
+### Traycer's Role (Planning Agent)
+- **Traycer** creates structured plans using the GOAL/SUBTASKS/CONSTRAINTS/CHECKS format
+- Plans from Traycer serve as the **Source of Truth** for implementation
+- Traycer analyzes requirements, breaks down complex tasks, and defines success criteria
+
+### Cline's Role (Execution Agent)
+- **Cline** executes plans created by Traycer
+- Follow Traycer's plans step-by-step unless explicitly instructed otherwise by the user
+- If a plan step is unclear, technically not feasible, or requires clarification:
+  - **STOP immediately**
+  - Explain the issue clearly to the user
+  - Ask for clarification or propose alternative approaches
+  - **DO NOT** proceed with assumptions or guesses
+
+### Collaboration Protocol
+1. User provides task or shares Traycer plan
+2. Cline reads and validates the plan
+3. If plan is clear: execute step-by-step
+4. If plan has issues: stop and communicate
+5. After completion: update memory bank (see below)
+
+**Important:** Never skip steps or make assumptions about undefined requirements. User validation is preferred over incorrect implementation.
+
+---
+
+## 2. Memory Bank Usage
+
+### Location
+- Memory Bank is located at: `memory-bank/` in the project root
+- Contains 4 key files:
+  - `projectContext.md` - Project overview, tech stack, architecture, commands
+  - `activeContext.md` - Current focus, open tasks, known issues
+  - `progress.md` - Task tracking (Open/In Progress/Done)
+  - `decisionLog.md` - Important technical decisions and rationale
+
+### When to Read Memory Bank
+
+**At the start of ANY significant task:**
+1. Read `memory-bank/projectContext.md` to understand:
+   - Project structure and architecture
+   - Tech stack and tools used
+   - Available commands and workflows
+
+2. Read `memory-bank/activeContext.md` to understand:
+   - Current project focus
+   - Open tasks and priorities
+   - Known issues and blockers
+
+3. Check `memory-bank/progress.md` for:
+   - Recently completed work (avoid duplication)
+   - Tasks in progress (avoid conflicts)
+
+4. Review `memory-bank/decisionLog.md` for:
+   - Past architectural decisions that may affect current work
+   - Rationale for existing patterns
+   - Constraints or trade-offs to respect
+
+### When to Write to Memory Bank
+
+**After completing significant tasks:**
+1. Update `activeContext.md`:
+   - Move completed items from "Open Tasks"
+   - Update "Current Focus" if priorities changed
+   - Add any new blockers or issues discovered
+
+2. Update `progress.md`:
+   - Move completed tasks to "Done" section
+   - Add brief summary of what was accomplished
+   - Include commit hash if applicable
+
+3. Add entry to `decisionLog.md` when you:
+   - Make important architectural or technical decisions
+   - Choose between multiple implementation approaches
+   - Introduce new patterns or deviate from existing ones
+   - Make trade-offs that should be documented
+
+**Format for decision log entries:**
+```markdown
+### [Decision Title]
+**Date:** YYYY-MM-DD
+**Context:** Why this decision was needed
+**Decision:** What was decided
+**Alternatives Considered:** Other options and why they weren't chosen
+**Rationale:** Reasoning behind the decision
+**Consequences:** Impacts, trade-offs, technical debt
+**Follow-up Tasks:** Related work items
+```
+
+### MCP Integration (Optional)
+- This project supports the Memory Bank MCP Server
+- If available, use MCP tools to read/write memory bank files:
+  - `memory_bank_read` - Read memory bank files
+  - `memory_bank_write` - Update memory bank files
+  - `memory_bank_update` - Append to memory bank files
+- MCP usage is optional but recommended for structured memory management
+
+---
+
+## 3. Code Style & Quality Standards
+
+### General Principles
+- **Consistency First:** Match the existing code style in the file/folder you're editing
+- **Type Safety:** Leverage TypeScript's type system fully
+- **Explicit over Implicit:** Prefer clear, readable code over clever one-liners
+- **Comments:** Add comments for complex logic, not obvious code
+
+### TypeScript Standards
+- Use TypeScript **strict mode** (already configured)
+- Avoid `any` types - use `unknown` or proper types instead
+- Prefer interfaces for object shapes, types for unions/intersections
+- Use proper null checking (`variable?.property`, nullish coalescing `??`)
+- Leverage shared types from `@repo/shared-types` for API contracts
+
+### React Standards (Frontend)
+- Use functional components with hooks
+- Prefer named exports for components
+- Use TypeScript for props (no PropTypes)
+- Follow React Query patterns for data fetching (see existing hooks)
+- Implement optimistic updates for mutations where appropriate
+- Use React.memo() sparingly, only for proven performance issues
+
+### NestJS Standards (Backend)
+- Follow modular architecture - group by feature (modules)
+- Use decorators for validation (`class-validator`)
+- Use DTOs for request/response types (in `@repo/shared-types`)
+- Implement proper error handling (use NestJS exceptions)
+- Use dependency injection (constructor injection preferred)
+- **Route Ordering:** Always place literal routes BEFORE parameterized routes (`:id`)
+  - Example: `/sessions/gamification` must come before `/sessions/:id`
+  - This is critical to prevent route matching issues
+
+### Database (Prisma)
+- Always generate Prisma Client after schema changes: `pnpm prisma:generate`
+- Create migrations for schema changes: `pnpm prisma:migrate`
+- Use Prisma's type-safe queries (no raw SQL unless necessary)
+- Include relations in queries when needed (avoid N+1 problems)
+- Use transactions for operations that modify multiple tables
+
+### Linting & Formatting
+- Run `pnpm lint:all` to check for style issues
+- Run `pnpm lint:fix` to auto-fix linting issues
+- Web app uses ESLint (configuration in `apps/web/`)
+- Respect existing `.eslintrc` rules - don't disable rules without discussion
+
+---
+
+## 4. Tests & Quality Assurance
+
+### Current Status
+⚠️ **No automated tests currently exist in this project**
+
+### When Tests Are Needed
+- User explicitly requests test coverage
+- Implementing critical business logic (auth, payments, data integrity)
+- After a production bug is fixed (regression tests)
+- Before major refactoring
+
+### Future Test Strategy (When Implemented)
+- **Unit Tests:** Jest or Vitest
+- **Component Tests:** React Testing Library
+- **E2E Tests:** Playwright or Cypress
+- Run tests before committing significant changes
+
+### Manual Testing Checklist
+Before marking major work as complete:
+- [ ] Run `pnpm typecheck` - no type errors
+- [ ] Run `pnpm lint:all` - no linting errors
+- [ ] Test in browser (if frontend changes)
+- [ ] Verify API endpoints (if backend changes)
+- [ ] Check both light and dark modes (if UI changes)
+- [ ] Test responsive layout (mobile, tablet, desktop)
+
+---
+
+## 5. Important Commands
+
+### Development
+```bash
+# Start frontend dev server (http://localhost:5173)
+pnpm dev:web
+
+# Start backend dev server (http://localhost:4000)
+pnpm dev:api
+
+# Start both frontend and backend
+pnpm dev:all
+
+# Start shared types in watch mode (auto-rebuild)
+pnpm dev:shared-types
+```
+
+### Building
+```bash
+# Build entire monorepo
+pnpm build
+
+# Type-check all packages
+pnpm typecheck
+```
+
+### Database (Prisma)
+```bash
+# Generate Prisma Client (after schema changes)
+pnpm prisma:generate
+
+# Create and apply migration
+pnpm prisma:migrate
+
+# Open Prisma Studio (database GUI)
+pnpm prisma:studio
+
+# Seed database with test data
+pnpm --filter @repo/api prisma:seed
+```
+
+### Docker
+```bash
+# Start development environment
+pnpm docker:dev
+
+# Start production environment
+pnpm docker:prod
+
+# Stop all containers
+pnpm docker:down
+
+# View logs
+pnpm docker:logs
+
+# Clean up (DESTRUCTIVE - removes volumes/images)
+pnpm docker:clean
+```
+
+### Linting
+```bash
+# Lint all packages
+pnpm lint:all
+
+# Lint and auto-fix
+pnpm lint:fix
+```
+
+### Workspace Commands
+```bash
+# Run command in specific package
+pnpm --filter @repo/web <command>
+pnpm --filter @repo/api <command>
+
+# Install dependency in specific package
+pnpm --filter @repo/web add <package>
+
+# Run command in all packages
+pnpm -r <command>
+```
+
+---
+
+## 6. Security & Safety Rules
+
+### Destructive Commands - ALWAYS ASK FIRST
+**NEVER run these commands without explicit user approval:**
+- `pnpm docker:clean` (removes volumes, deletes data)
+- `pnpm clean` (removes all node_modules and build artifacts)
+- `prisma migrate reset` (drops and recreates database)
+- `prisma db push --force-reset` (resets database schema)
+- `rm -rf` or any recursive delete operations
+- `git push --force` (rewrites history)
+- `git reset --hard` (loses uncommitted changes)
+- Any `DROP TABLE` or `TRUNCATE` SQL commands
+- Deployment commands to production environments
+
+### Secrets & Sensitive Data
+**NEVER include in code, logs, documentation, or memory bank:**
+- API keys, tokens, passwords
+- Database connection strings with credentials
+- JWT secrets
+- Private keys or certificates
+- User personal data (emails, names, etc.)
+- Any `.env` file contents
+
+**Instead:**
+- Reference environment variables by name (e.g., "set JWT_SECRET in .env")
+- Use placeholder values in examples (e.g., "your-secret-here")
+- Document required environment variables without revealing values
+
+### File System Safety
+- Always verify paths before writing files
+- Use relative paths from project root when possible
+- Don't modify files outside the project directory
+- Ask before creating files in unusual locations
+
+### Database Safety
+- Always use transactions for multi-step database operations
+- Validate user input before database queries (use DTOs and class-validator)
+- Never construct raw SQL with user input (use Prisma's parameterized queries)
+- Ask before running migrations in production
+
+### Git Safety
+- Commit messages should be clear and descriptive
+- Don't commit secrets, API keys, or sensitive data
+- Don't force push to main/master without explicit approval
+- Review changes before committing (show user what will be committed)
+
+---
+
+## 7. File Structure & Organization
+
+### Frontend Structure (`apps/web/src/`)
+```
+├── components/       # Reusable UI components (organized by feature)
+├── contexts/         # React Context providers
+├── hooks/            # Custom React hooks (useQuery hooks, utilities)
+├── pages/            # Top-level route components
+├── services/         # API client and external services
+└── utils/            # Helper functions and utilities
+```
+
+### Backend Structure (`apps/api/src/`)
+```
+├── common/           # Shared utilities (Prisma, guards, decorators)
+├── modules/          # Feature modules (auth, sessions, templates, users)
+└── config/           # Configuration services
+```
+
+### Creating New Files
+- Place components in appropriate feature folders
+- Match naming conventions (PascalCase for components, camelCase for utilities)
+- Export from index files when appropriate (barrel exports)
+- Keep files focused and single-responsibility
+
+---
+
+## 8. Working with Monorepo
+
+### Package References
+- Frontend and backend both reference `@repo/shared-types`
+- Changes to shared types are immediately reflected (no build step)
+- Run `pnpm typecheck` after changing shared types to verify
+
+### Adding Dependencies
+```bash
+# Add to specific package
+pnpm --filter @repo/web add <package>
+pnpm --filter @repo/api add <package>
+
+# Add to root (dev dependencies only)
+pnpm add -D -w <package>
+```
+
+### Build Order
+1. `@repo/shared-types` (no build needed - uses source)
+2. `@repo/api` (NestJS build)
+3. `@repo/web` (Vite build)
+
+Use `pnpm build` to build everything in correct order.
+
+---
+
+## 9. Error Handling & Debugging
+
+### When Something Goes Wrong
+1. **Check TypeScript errors first:** `pnpm typecheck`
+2. **Check linting:** `pnpm lint:all`
+3. **Read error messages carefully** - they're usually accurate
+4. **Check recent git changes** if something broke
+5. **Consult memory bank** for known issues
+6. **Ask user** if the issue is unclear or requires decisions
+
+### Common Issues & Solutions
+- **"Module not found" errors:** Run `pnpm install`
+- **Prisma client errors:** Run `pnpm prisma:generate`
+- **Type errors in shared-types:** Run `pnpm typecheck:shared-types`
+- **Port already in use:** Stop other instances or change port
+- **Docker issues:** Run `pnpm docker:down` then `pnpm docker:dev`
+
+### Logging
+- Use structured logging in backend (NestJS Logger)
+- Use console.error for errors, console.log sparingly
+- Don't log sensitive data (passwords, tokens, PII)
+
+---
+
+## 10. Communication & Workflow
+
+### Before Starting a Task
+1. Read relevant memory bank files
+2. Understand the goal and success criteria
+3. Identify which files need to be modified
+4. Check for related code or patterns in the codebase
+
+### During Implementation
+- Make atomic commits (one logical change per commit)
+- Write clear commit messages (see Git Safety section)
+- Test changes as you go
+- Update types if changing data structures
+
+### After Completing a Task
+1. Run quality checks (typecheck, lint)
+2. Update memory bank (activeContext, progress, decisions)
+3. Provide clear summary to user
+4. Mention any follow-up tasks or considerations
+
+### Asking Questions
+- Ask early if something is unclear
+- Provide context and explain why you need clarification
+- Suggest alternatives when possible
+- Don't make assumptions about user intent
+
+---
+
+## 11. Special Considerations for This Project
+
+### AI-Generated Codebase
+- This project was created entirely with AI (Claude Code)
+- Code quality is generally high, but may have inconsistencies
+- Respect existing patterns, but suggest improvements when beneficial
+- Document decisions to maintain consistency
+
+### Monorepo Complexity
+- Changes to shared types affect both frontend and backend
+- Always consider cross-package impacts
+- Run `pnpm typecheck` to verify changes across packages
+
+### Route Ordering (Critical!)
+**In NestJS controllers, ALWAYS place literal routes before parameterized routes.**
+
+Example (CORRECT):
+```typescript
+@Get('suggestions')      // Literal route - FIRST
+async getSuggestions()
+
+@Get('gamification')     // Literal route - FIRST
+async getGamification()
+
+@Get(':id')              // Parameterized route - LAST
+async findOne(@Param('id') id: string)
+```
+
+Example (WRONG - will cause 400 errors):
+```typescript
+@Get(':id')              // DON'T DO THIS - catches everything first
+async findOne(@Param('id') id: string)
+
+@Get('suggestions')      // Will never be reached
+async getSuggestions()
+```
+
+### Performance Considerations
+- React Query handles caching - don't add redundant caching layers
+- Use optimistic updates for better UX
+- Be mindful of N+1 queries in Prisma
+- Test with realistic data volumes
+
+---
+
+## 12. Future Enhancements
+
+When these features are added, update this file:
+- [ ] Testing framework and test-running guidelines
+- [ ] CI/CD pipeline and deployment procedures
+- [ ] Mobile app (React Native) specific rules
+- [ ] API versioning strategy
+- [ ] Monitoring and observability tools
+
+---
+
+**Last Updated:** 2025-01-10
+
+---
+
+*These rules help maintain consistency, quality, and safety throughout the project. Follow them diligently, and suggest improvements when you see opportunities.*
