@@ -45,8 +45,10 @@ export function FilterChip({
 
     if (isActive) {
       if (variant === 'category') {
-        // Use category gradient for active category chips
-        const categoryStyle = getCategoryStyle(value as SessionCategory);
+        // Use category gradient for active category chips - safely cast with fallback
+        const validCategories = ['school', 'programming', 'language', 'personal', 'other'];
+        const category = validCategories.includes(value) ? (value as SessionCategory) : 'other';
+        const categoryStyle = getCategoryStyle(category);
         return `${baseClasses} ${categoryStyle.gradient} text-white shadow-md hover:shadow-lg hover:scale-105 active:scale-95`;
       }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import type { RefObject } from 'react';
 
 /**
  * Standard animation durations in milliseconds
@@ -160,7 +161,7 @@ export function useDelayedValue(delay: number): boolean {
 /**
  * Hook for intersection observer-based animations
  */
-export function useInView(options?: IntersectionObserverInit): [React.RefObject<HTMLDivElement>, boolean] {
+export function useInView(options?: IntersectionObserverInit): [RefObject<HTMLDivElement>, boolean] {
   const ref = useRef<HTMLDivElement>(null);
   const [isInView, setIsInView] = useState(false);
 
