@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react';
 import type { SessionResponse } from '@repo/shared-types';
 import { formatDate, formatTime } from '@/utils/dateUtils';
 import {
@@ -6,22 +7,71 @@ import {
   getSessionDuration
 } from '@/utils/sessionUtils';
 import { getCategoryIconComponent } from '@/utils/iconUtils';
-import { useToastConfirm } from '@/contexts/ToastContext';
+import { useToastConfirm, useToast } from '@/contexts/ToastContext';
+import { QuickActionMenu, type QuickAction } from '@/components/common/QuickActionMenu';
+import { Copy, Check, Calendar, MoreVertical } from 'lucide-react';
 
 interface SessionCardProps {
   session: SessionResponse;
   onEdit?: (session: SessionResponse) => void;
   onDelete?: (id: string) => void;
   onClick?: (session: SessionResponse) => void;
+  onDuplicate?: (session: SessionResponse) => void;
 }
 
-export function SessionCard({ session, onEdit, onDelete, onClick }: SessionCardProps) {
+export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate }: SessionCardProps) {
   const confirm = useToastConfirm();
+  const toast = useToast();
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // Guard against undefined session
   if (!session) {
     return null;
   }
+
+  const handleDuplicate = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (onDuplicate) {
+      onDuplicate(session);
+      toast.success('Session duplicated successfully');
+    }
+  };
+
+  const handleMarkComplete = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (onEdit) {
+      onEdit({ ...session, status: 'completed' });
+      toast.success('Session marked as complete');
+    }
+  };
+
+  const handleReschedule = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // For simplicity, we'll just open the edit modal
+    // A more sophisticated implementation could show a date picker
+    if (onEdit) {
+      onEdit(session);
+    }
+  };
+
+  const quickActions: QuickAction[] = [
+    {
+      label: 'Duplicate',
+      icon: <Copy className="w-5 h-5" />,
+      onClick: handleDuplicate,
+    },
+    {
+      label: 'Mark Complete',
+      icon: <Check className="w-5 h-5" />,
+      onClick: handleMarkComplete,
+    },
+    {
+      label: 'Reschedule',
+      icon: <Calendar className="w-5 h-5" />,
+      onClick: handleReschedule,
+    },
+  ];
 
   const statusColor = session.status === 'completed' ? 'border-l-green-500' :
                       session.status === 'in_progress' ? 'border-l-blue-500' :
@@ -89,6 +139,17 @@ export function SessionCard({ session, onEdit, onDelete, onClick }: SessionCardP
         </div>
 
         <div className="flex flex-col gap-2 ml-4">
+          <button
+            ref={menuButtonRef}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowQuickMenu(!showQuickMenu);
+            }}
+            className="p-2 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            title="More Actions (Ctrl+D for duplicate)"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
           {onEdit && (
             <button
               onClick={(e) => {
@@ -122,6 +183,14 @@ export function SessionCard({ session, onEdit, onDelete, onClick }: SessionCardP
           )}
         </div>
       </div>
+
+      {/* Quick Action Menu */}
+      <QuickActionMenu
+        isOpen={showQuickMenu}
+        onClose={() => setShowQuickMenu(false)}
+        actions={quickActions}
+        anchorEl={menuButtonRef.current || undefined}
+      />
     </div>
   );
 }

@@ -271,6 +271,43 @@
     animation: bounce-in var(--transition-slow) ease-out;
   }
 
+  @keyframes pulse-subtle {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
+
+  /* Search result highlighting */
+  .highlight {
+    background-color: #fef08a;
+    color: #854d0e;
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+
+  .dark .highlight {
+    background-color: #713f12;
+    color: #fef08a;
+  }
+
+  /* Respect prefers-reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   /* Enhanced transition utilities */
   .transition-fast {
     transition: all var(--transition-fast) ease-in-out;
