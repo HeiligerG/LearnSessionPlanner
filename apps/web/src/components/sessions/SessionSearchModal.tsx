@@ -51,8 +51,8 @@ export function SessionSearchModal({ isOpen, onClose, onSelectSession }: Session
       setLoading(true);
       try {
         const response = await api.sessions.getAll();
-        // Ensure we always set an array, even if response.data is null/undefined
-        const sessions = response?.data;
+        // Handle the API response structure properly - response.data.data contains sessions array
+        const sessions = response?.data?.data;
         if (Array.isArray(sessions)) {
           setAllSessions(sessions);
         } else {
