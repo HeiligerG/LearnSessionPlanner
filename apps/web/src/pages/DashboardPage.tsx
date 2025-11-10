@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSessions } from '@/hooks/useSessions';
 import { useRecentSessions } from '@/hooks/useRecentSessions';
 import { useToast } from '@/contexts/ToastContext';
+import { useGlobalShortcuts } from '@/contexts/GlobalShortcutsContext';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SessionCard } from '@/components/sessions/SessionCard';
 import { SessionForm } from '@/components/sessions/SessionForm';
@@ -26,11 +27,13 @@ export default function DashboardPage() {
 
   const { addRecentSession } = useRecentSessions();
   const toast = useToast();
+  const { registerShortcut, unregisterShortcut } = useGlobalShortcuts();
 
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
+  const [lastInteractedSession, setLastInteractedSession] = useState<SessionResponse | null>(null);
   const [stats, setStats] = useState<SessionStatsDto | null>(null);
 
   // Keyboard shortcuts
@@ -76,6 +79,29 @@ export default function DashboardPage() {
 
   useKeyboardShortcuts({ shortcuts });
 
+  // Comment 1 & 2: Register Ctrl+D global shortcut for duplication
+  useEffect(() => {
+    if (sessions.length > 0) {
+      registerShortcut('duplicate-session', {
+        key: 'D',
+        ctrlKey: true,
+        description: 'Duplicate selected session',
+        action: () => {
+          if (lastInteractedSession) {
+            handleDuplicateSession(lastInteractedSession);
+            setLastInteractedSession(null);
+          } else {
+            toast.warning('No session selected. Click a session first.');
+          }
+        },
+      });
+    }
+
+    return () => {
+      unregisterShortcut('duplicate-session');
+    };
+  }, [sessions.length, lastInteractedSession, registerShortcut, unregisterShortcut]);
+
   useEffect(() => {
     // Fetch statistics
     api.sessions.getStats().then((response) => {
@@ -109,6 +135,8 @@ export default function DashboardPage() {
   const handleEditSession = (session: SessionResponse) => {
     // Comment 8: Add to recent sessions when editing
     addRecentSession(session);
+    // Comment 1 & 2: Track last interacted session for Ctrl+D
+    setLastInteractedSession(session);
     setSelectedSession(session);
     setShowSessionForm(true);
   };
@@ -156,6 +184,8 @@ export default function DashboardPage() {
   };
 
   const handleSessionClick = (session: SessionResponse) => {
+    // Comment 1 & 2: Track last interacted session for Ctrl+D
+    setLastInteractedSession(session);
     handleEditSession(session);
   };
 

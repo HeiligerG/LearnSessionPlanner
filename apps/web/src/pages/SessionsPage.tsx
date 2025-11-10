@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Plus, Upload, Search as SearchIcon } from 'lucide-react'
 import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto, BulkCreateSessionDto, BulkCreateResult, TemplateResponse } from '@repo/shared-types'
 import { useSessions } from '@/hooks/useSessions'
 import { useRecentSessions } from '@/hooks/useRecentSessions'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useGlobalShortcuts } from '@/contexts/GlobalShortcutsContext'
 import { SessionCard } from '@/components/sessions/SessionCard'
 import { SessionForm } from '@/components/sessions/SessionForm'
 import { BulkSessionForm } from '@/components/sessions/BulkSessionForm'
@@ -21,6 +22,7 @@ const SessionsPage: React.FC = () => {
   const confirm = useToastConfirm()
   const { sessions: rawSessions, loading, error, createSession, bulkCreateSessions, updateSession, deleteSession, refetch, updateFilters, filters } = useSessions()
   const { addRecentSession } = useRecentSessions()
+  const { registerShortcut, unregisterShortcut } = useGlobalShortcuts()
 
   // Normalize sessions at the boundary - filter out any invalid entries
   const sessions = useMemo(() => {
@@ -40,6 +42,7 @@ const SessionsPage: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [bulkResult, setBulkResult] = useState<BulkCreateResult | null>(null)
   const [selectedSession, setSelectedSession] = useState<SessionResponse | undefined>()
+  const [lastInteractedSession, setLastInteractedSession] = useState<SessionResponse | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('date')
   const [groupBy, setGroupBy] = useState<GroupOption>('date')
@@ -86,6 +89,29 @@ const SessionsPage: React.FC = () => {
   ], [refetch])
 
   useKeyboardShortcuts({ shortcuts })
+
+  // Comment 1 & 2: Register Ctrl+D global shortcut for duplication
+  useEffect(() => {
+    if (sessions.length > 0) {
+      registerShortcut('duplicate-session', {
+        key: 'D',
+        ctrlKey: true,
+        description: 'Duplicate selected session',
+        action: () => {
+          if (lastInteractedSession) {
+            handleDuplicateSession(lastInteractedSession);
+            setLastInteractedSession(null);
+          } else {
+            toast.warning('No session selected. Click a session first.');
+          }
+        },
+      });
+    }
+
+    return () => {
+      unregisterShortcut('duplicate-session');
+    };
+  }, [sessions.length, lastInteractedSession, registerShortcut, unregisterShortcut]);
 
   // Apply filters, search, and sort
   const processedSessions = useMemo(() => {
@@ -156,6 +182,8 @@ const SessionsPage: React.FC = () => {
   const handleEditClick = (session: SessionResponse) => {
     // Comment 8: Add to recent sessions when editing
     addRecentSession(session)
+    // Comment 1 & 2: Track last interacted session for Ctrl+D
+    setLastInteractedSession(session)
     setSelectedSession(session)
     setIsFormOpen(true)
   }
