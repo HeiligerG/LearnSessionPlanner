@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSessions } from '@/hooks/useSessions';
 import { useRecentSessions } from '@/hooks/useRecentSessions';
+import { useGamification } from '@/hooks/useGamification';
+import { useSuggestions } from '@/hooks/useSuggestions';
 import { useToast } from '@/contexts/ToastContext';
 import { useGlobalShortcuts } from '@/contexts/GlobalShortcutsContext';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -11,9 +13,14 @@ import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp
 import { SkeletonLoader } from '@/components/common/SkeletonLoader';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Modal } from '@/components/common/Modal';
+import { StreakDisplay } from '@/components/gamification/StreakDisplay';
+import { LevelProgress } from '@/components/gamification/LevelProgress';
+import { AchievementCard } from '@/components/gamification/AchievementCard';
+import { AchievementsModal } from '@/components/gamification/AchievementsModal';
+import { SuggestionCard } from '@/components/suggestions/SuggestionCard';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { BookOpen } from 'lucide-react';
-import type { SessionResponse, SessionStatsDto } from '@repo/shared-types';
+import { BookOpen, Trophy, Lightbulb } from 'lucide-react';
+import type { SessionResponse, SessionStatsDto, SessionSuggestionDto } from '@repo/shared-types';
 import { api } from '@/services/api';
 
 export default function DashboardPage() {
@@ -28,15 +35,19 @@ export default function DashboardPage() {
   } = useSessions();
 
   const { addRecentSession } = useRecentSessions();
+  const { gamification, isLoading: gamificationLoading, refetch: refetchGamification } = useGamification();
+  const { suggestions, isLoading: suggestionsLoading, refetch: refetchSuggestions } = useSuggestions();
   const toast = useToast();
   const { registerShortcut, unregisterShortcut } = useGlobalShortcuts();
 
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
   const [lastInteractedSession, setLastInteractedSession] = useState<SessionResponse | null>(null);
   const [stats, setStats] = useState<SessionStatsDto | null>(null);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
   // Keyboard shortcuts
   const shortcuts = useMemo(() => [
@@ -210,6 +221,44 @@ export default function DashboardPage() {
     handleEditSession(session);
   };
 
+  // Suggestion handlers
+  const handleAcceptSuggestion = async (suggestion: SessionSuggestionDto) => {
+    try {
+      await createSession({
+        title: suggestion.suggestedTitle,
+        category: suggestion.suggestedCategory,
+        duration: suggestion.suggestedDuration,
+        tags: suggestion.suggestedTags,
+        priority: 'medium',
+        status: 'planned',
+      });
+      toast.success('Session created from suggestion!');
+
+      // Generate a unique key for this suggestion to track dismissal
+      const suggestionKey = `${suggestion.suggestedTitle}-${suggestion.suggestedCategory}`;
+      setDismissedSuggestions((prev) => new Set(prev).add(suggestionKey));
+
+      // Refresh suggestions after accepting
+      refetchSuggestions();
+    } catch (error) {
+      console.error('Failed to create session from suggestion:', error);
+      toast.error('Failed to create session from suggestion');
+    }
+  };
+
+  const handleDismissSuggestion = (suggestion: SessionSuggestionDto) => {
+    const suggestionKey = `${suggestion.suggestedTitle}-${suggestion.suggestedCategory}`;
+    setDismissedSuggestions((prev) => new Set(prev).add(suggestionKey));
+  };
+
+  // Filter out dismissed suggestions
+  const visibleSuggestions = (suggestions || [])
+    .filter((suggestion) => {
+      const suggestionKey = `${suggestion.suggestedTitle}-${suggestion.suggestedCategory}`;
+      return !dismissedSuggestions.has(suggestionKey);
+    })
+    .slice(0, 5);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -285,6 +334,84 @@ export default function DashboardPage() {
               }
               color="warning"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Gamification Section */}
+      {gamification && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-500" />
+              Your Progress
+            </h2>
+            <button
+              onClick={() => setIsAchievementsOpen(true)}
+              className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium transition-colors"
+            >
+              View All Achievements
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Level Progress */}
+            <LevelProgress
+              level={gamification.level}
+              experiencePoints={gamification.experiencePoints}
+              nextLevelThreshold={gamification.nextLevelThreshold}
+            />
+
+            {/* Streak Display */}
+            <StreakDisplay
+              currentStreak={gamification.currentStreak}
+              longestStreak={gamification.longestStreak}
+            />
+          </div>
+
+          {/* Recent Achievements */}
+          {gamification.achievements.filter((a) => a.unlockedAt !== null).length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                Recent Achievements
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {gamification.achievements
+                  .filter((a) => a.unlockedAt !== null)
+                  .sort(
+                    (a, b) =>
+                      new Date(b.unlockedAt!).getTime() - new Date(a.unlockedAt!).getTime()
+                  )
+                  .slice(0, 3)
+                  .map((achievement) => (
+                    <AchievementCard
+                      key={achievement.id}
+                      achievement={achievement}
+                      size="sm"
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Suggestions Section */}
+      {visibleSuggestions.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-yellow-500" />
+            Smart Suggestions
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {visibleSuggestions.map((suggestion, index) => (
+              <SuggestionCard
+                key={index}
+                suggestion={suggestion}
+                onAccept={handleAcceptSuggestion}
+                onDismiss={handleDismissSuggestion}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -408,6 +535,15 @@ export default function DashboardPage() {
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
       />
+
+      {/* Achievements Modal */}
+      {gamification && (
+        <AchievementsModal
+          isOpen={isAchievementsOpen}
+          onClose={() => setIsAchievementsOpen(false)}
+          achievements={gamification.achievements}
+        />
+      )}
     </div>
   );
 }

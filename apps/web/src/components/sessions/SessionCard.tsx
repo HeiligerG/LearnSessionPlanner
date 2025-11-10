@@ -21,9 +21,22 @@ interface SessionCardProps {
   onClick?: (session: SessionResponse) => void;
   onDuplicate?: (session: SessionResponse) => void;
   onQuickUpdate?: (id: string, patch: Partial<SessionResponse>) => Promise<void>;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
 }
 
-export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, onQuickUpdate }: SessionCardProps) {
+export function SessionCard({
+  session,
+  onEdit,
+  onDelete,
+  onClick,
+  onDuplicate,
+  onQuickUpdate,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelection,
+}: SessionCardProps) {
   const confirm = useToastConfirm();
   const toast = useToast();
   const [showQuickMenu, setShowQuickMenu] = useState(false);
@@ -89,6 +102,21 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
     }
   };
 
+  const handleSelectionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleSelection) {
+      onToggleSelection(session.id);
+    }
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (selectionMode) {
+      handleSelectionClick(e);
+    } else {
+      onClick?.(session);
+    }
+  };
+
   const quickActions: QuickAction[] = [
     {
       label: 'Duplicate',
@@ -119,14 +147,33 @@ export function SessionCard({ session, onEdit, onDelete, onClick, onDuplicate, o
   return (
     <div
       ref={cardRef}
-      className={`group relative rounded-xl border-l-4 ${statusColor} overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] animate-slide-up`}
-      onClick={() => onClick?.(session)}
+      className={`group relative rounded-xl border-l-4 ${statusColor} overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] animate-slide-up ${
+        isSelected ? 'selection-mode ring-2 ring-blue-500 ring-offset-2' : ''
+      }`}
+      onClick={handleCardClick}
     >
+      {/* Selection Checkbox */}
+      {selectionMode && (
+        <div className="absolute top-3 left-3 z-10">
+          <button
+            onClick={handleSelectionClick}
+            className={`w-6 h-6 rounded-md border-2 transition-all duration-200 flex items-center justify-center ${
+              isSelected
+                ? 'checkbox-gradient border-transparent text-white'
+                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-500'
+            }`}
+            aria-label={isSelected ? 'Deselect session' : 'Select session'}
+          >
+            {isSelected && <Check className="w-4 h-4" />}
+          </button>
+        </div>
+      )}
+
       {/* Category gradient overlay */}
       <div className={`absolute inset-0 ${categoryStyle.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-300`} />
 
       {/* Glassmorphism card content */}
-      <div className="relative glass-card p-4">
+      <div className={`relative glass-card p-4 ${selectionMode ? 'pl-12' : ''}`}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">

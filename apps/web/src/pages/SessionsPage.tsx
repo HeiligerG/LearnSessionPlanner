@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { Plus, Upload, Search as SearchIcon, ArrowUp, X } from 'lucide-react'
+import { Plus, Upload, Search as SearchIcon, ArrowUp, X, CheckSquare } from 'lucide-react'
 import type { SessionResponse, SessionStatus, SessionPriority, SessionCategory, CreateSessionDto, UpdateSessionDto, BulkCreateSessionDto, BulkCreateResult, TemplateResponse } from '@repo/shared-types'
 import { useSessions } from '@/hooks/useSessions'
+import { useBulkSelection } from '@/hooks/useBulkSelection'
 import { useRecentSessions } from '@/hooks/useRecentSessions'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useGlobalShortcuts } from '@/contexts/GlobalShortcutsContext'
@@ -9,12 +10,15 @@ import { SessionCard } from '@/components/sessions/SessionCard'
 import { SessionForm } from '@/components/sessions/SessionForm'
 import { BulkSessionForm } from '@/components/sessions/BulkSessionForm'
 import { SessionSearchModal } from '@/components/sessions/SessionSearchModal'
+import { BulkActionsBar } from '@/components/sessions/BulkActionsBar'
 import { SkeletonLoader } from '@/components/common/SkeletonLoader'
 import { KeyboardShortcutsHelp } from '@/components/common/KeyboardShortcutsHelp'
 import { EmptyState } from '@/components/common/EmptyState'
 import { FilterChip } from '@/components/common/FilterChip'
 import { useToast, useToastConfirm } from '@/contexts/ToastContext'
 import { filterSessions, sortSessions, groupSessionsByDate } from '@/utils/sessionUtils'
+import { downloadBlob } from '@/utils/exportUtils'
+import { api } from '@/services/api'
 import { BookOpen } from 'lucide-react'
 
 // Simple error boundary for session rendering
@@ -79,6 +83,16 @@ const SessionsPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('date')
   const [groupBy, setGroupBy] = useState<GroupOption>('date')
   const [showScrollToTop, setShowScrollToTop] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const {
+    selectedIds,
+    selectedCount,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+    isSelected,
+    hasSelection,
+  } = useBulkSelection()
 
   // Track scroll position for scroll-to-top button
   useEffect(() => {
@@ -282,6 +296,74 @@ const SessionsPage: React.FC = () => {
     }
   }
 
+  // Bulk operation handlers
+  const handleBulkUpdateStatus = async (status: SessionStatus) => {
+    try {
+      const response = await api.sessions.bulkUpdate({
+        sessionIds: selectedIds,
+        updates: { status },
+      })
+      toast.success(`${response.data?.successful.length || 0} sessions updated`)
+      clearSelection()
+      refetch()
+    } catch (error) {
+      toast.error('Failed to update sessions')
+    }
+  }
+
+  const handleBulkUpdateCategory = async (category: SessionCategory) => {
+    try {
+      const response = await api.sessions.bulkUpdate({
+        sessionIds: selectedIds,
+        updates: { category },
+      })
+      toast.success(`${response.data?.successful.length || 0} sessions updated`)
+      clearSelection()
+      refetch()
+    } catch (error) {
+      toast.error('Failed to update sessions')
+    }
+  }
+
+  const handleBulkUpdatePriority = async (priority: SessionPriority) => {
+    try {
+      const response = await api.sessions.bulkUpdate({
+        sessionIds: selectedIds,
+        updates: { priority },
+      })
+      toast.success(`${response.data?.successful.length || 0} sessions updated`)
+      clearSelection()
+      refetch()
+    } catch (error) {
+      toast.error('Failed to update sessions')
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const confirmed = await confirm(`Are you sure you want to delete ${selectedCount} sessions?`)
+    if (confirmed) {
+      try {
+        const response = await api.sessions.bulkDelete(selectedIds)
+        toast.success(`${response.data?.successful.length || 0} sessions deleted`)
+        clearSelection()
+        refetch()
+      } catch (error) {
+        toast.error('Failed to delete sessions')
+      }
+    }
+  }
+
+  const handleExport = async (format: 'csv' | 'json') => {
+    try {
+      const blob = await api.sessions.exportSessions(format, filters)
+      const filename = `sessions-export-${new Date().toISOString().split('T')[0]}.${format}`
+      downloadBlob(blob, filename)
+      toast.success(`Exported ${format.toUpperCase()} successfully`)
+    } catch (error) {
+      toast.error('Failed to export sessions')
+    }
+  }
+
   const handleCloseForm = () => {
     setIsFormOpen(false)
     setSelectedSession(undefined)
@@ -353,6 +435,20 @@ const SessionsPage: React.FC = () => {
             >
               <Upload className="h-5 w-5" />
               <span>Bulk Create</span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectionMode(!selectionMode)
+                if (selectionMode) clearSelection()
+              }}
+              className={`flex items-center justify-center gap-2 px-4 py-2 border rounded-lg transition-all hover:scale-105 shadow-md ${
+                selectionMode
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+            >
+              <CheckSquare className="h-5 w-5" />
+              <span>{selectionMode ? 'Exit Selection' : 'Select'}</span>
             </button>
             <button
               onClick={() => setIsFormOpen(true)}
@@ -760,6 +856,9 @@ const SessionsPage: React.FC = () => {
                             onDelete={handleDeleteSession}
                             onDuplicate={handleDuplicateSession}
                             onQuickUpdate={handleQuickUpdate}
+                            selectionMode={selectionMode}
+                            isSelected={isSelected(session.id)}
+                            onToggleSelection={toggleSelection}
                           />
                         </div>
                       ))}
@@ -854,6 +953,18 @@ const SessionsPage: React.FC = () => {
         >
           <ArrowUp className="w-6 h-6" />
         </button>
+      )}
+      {/* Bulk Actions Bar */}
+      {hasSelection && (
+        <BulkActionsBar
+          selectedCount={selectedCount}
+          onUpdateStatus={handleBulkUpdateStatus}
+          onUpdateCategory={handleBulkUpdateCategory}
+          onUpdatePriority={handleBulkUpdatePriority}
+          onDelete={handleBulkDelete}
+          onClearSelection={clearSelection}
+          onExport={handleExport}
+        />
       )}
     </div>
   )

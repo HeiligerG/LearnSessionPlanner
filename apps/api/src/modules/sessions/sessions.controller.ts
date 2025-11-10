@@ -35,6 +35,11 @@ import type {
   TrendDataPoint,
   BulkCreateSessionDto,
   BulkCreateResult,
+  BulkUpdateSessionDto,
+  BulkOperationResult,
+  ExportFormat,
+  SessionSuggestionDto,
+  GamificationSummaryDto,
   FileImportResultDto,
 } from '@repo/shared-types';
 import { SessionCategory } from '@repo/shared-types';
@@ -277,6 +282,32 @@ export class SessionsController {
       success: true,
       message: 'Search completed successfully',
       data: sessions,
+    };
+  }
+
+  @Get('suggestions')
+  async getSuggestions(
+    @CurrentUser('sub') userId: string,
+  ): Promise<ApiResponse<SessionSuggestionDto[]>> {
+    const suggestions = await this.sessionsService.generateSuggestions(userId);
+
+    return {
+      success: true,
+      message: 'Session suggestions generated successfully',
+      data: suggestions,
+    };
+  }
+
+  @Get('gamification')
+  async getGamification(
+    @CurrentUser('sub') userId: string,
+  ): Promise<ApiResponse<GamificationSummaryDto>> {
+    const gamification = await this.sessionsService.getGamificationSummary(userId);
+
+    return {
+      success: true,
+      message: 'Gamification data retrieved successfully',
+      data: gamification,
     };
   }
 
@@ -549,5 +580,88 @@ export class SessionsController {
       message: `Updated ${count} sessions to MISSED status`,
       data: { count },
     };
+  }
+
+  @Post('bulk-update')
+  @HttpCode(HttpStatus.OK)
+  async bulkUpdate(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: BulkUpdateSessionDto,
+  ): Promise<ApiResponse<BulkOperationResult>> {
+    if (!dto.sessionIds || dto.sessionIds.length === 0) {
+      throw new BadRequestException('At least one session ID is required');
+    }
+
+    if (dto.sessionIds.length > 500) {
+      throw new BadRequestException('Cannot update more than 500 sessions at once');
+    }
+
+    if (!dto.updates || Object.keys(dto.updates).length === 0) {
+      throw new BadRequestException('Updates object cannot be empty');
+    }
+
+    const result = await this.sessionsService.bulkUpdate(userId, dto);
+
+    return {
+      success: true,
+      message: `Bulk update completed: ${result.successful.length} updated, ${result.failed.length} failed`,
+      data: result,
+    };
+  }
+
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  async bulkDelete(
+    @CurrentUser('sub') userId: string,
+    @Body() body: { sessionIds: string[] },
+  ): Promise<ApiResponse<BulkOperationResult>> {
+    if (!body.sessionIds || body.sessionIds.length === 0) {
+      throw new BadRequestException('At least one session ID is required');
+    }
+
+    if (body.sessionIds.length > 500) {
+      throw new BadRequestException('Cannot delete more than 500 sessions at once');
+    }
+
+    const result = await this.sessionsService.bulkDelete(userId, body.sessionIds);
+
+    return {
+      success: true,
+      message: `Bulk delete completed: ${result.successful.length} deleted, ${result.failed.length} failed`,
+      data: result,
+    };
+  }
+
+  @Get('export')
+  async exportSessions(
+    @CurrentUser('sub') userId: string,
+    @Query('format') format: ExportFormat,
+    @Query() filters: SessionFilters,
+    @Res() res: Response,
+  ): Promise<void> {
+    const validFormats: ExportFormat[] = ['csv', 'json'];
+    if (!format || !validFormats.includes(format)) {
+      throw new BadRequestException('Invalid format. Must be either "csv" or "json"');
+    }
+
+    const content = await this.sessionsService.exportSessions(userId, format, filters);
+
+    let contentType = '';
+    let filename = '';
+
+    switch (format) {
+      case 'csv':
+        contentType = 'text/csv';
+        filename = `sessions-export-${new Date().toISOString().split('T')[0]}.csv`;
+        break;
+      case 'json':
+        contentType = 'application/json';
+        filename = `sessions-export-${new Date().toISOString().split('T')[0]}.json`;
+        break;
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
   }
 }

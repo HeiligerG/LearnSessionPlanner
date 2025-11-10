@@ -296,3 +296,70 @@ export interface ParsedSessionRowDto {
  * Sample file format type
  */
 export type SampleFileFormat = 'csv' | 'json' | 'xml';
+
+/**
+ * Bulk update session DTO
+ */
+export interface BulkUpdateSessionDto {
+  sessionIds: string[];
+  updates: Partial<UpdateSessionDto>;
+}
+
+/**
+ * Bulk delete DTO
+ */
+export interface BulkDeleteDto {
+  sessionIds: string[];
+}
+
+/**
+ * Bulk operation result DTO
+ */
+export interface BulkOperationResult {
+  successful: string[];
+  failed: Array<{ id: string; error: string }>;
+  totalProcessed: number;
+}
+
+/**
+ * Export format type
+ */
+export type ExportFormat = 'csv' | 'json';
+
+/**
+ * Session suggestion DTO
+ */
+export interface SessionSuggestionDto {
+  suggestedTitle: string;
+  suggestedCategory: SessionCategory;
+  suggestedDuration: number;
+  suggestedTags: string[];
+  reason: string;
+  confidence: number; // 0-1
+}
+
+/**
+ * Achievement DTO
+ */
+export interface AchievementDto {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  unlockedAt: ISODateString | null;
+  progress: number; // 0-100
+  category: string;
+}
+
+/**
+ * Gamification summary DTO
+ */
+export interface GamificationSummaryDto {
+  currentStreak: number;
+  longestStreak: number;
+  totalSessionsCompleted: number;
+  achievements: AchievementDto[];
+  level: number;
+  experiencePoints: number;
+  nextLevelThreshold: number;
+}

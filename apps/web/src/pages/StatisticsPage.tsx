@@ -6,7 +6,11 @@ import CategoryChart from '@/components/statistics/CategoryChart';
 import TrendChart from '@/components/statistics/TrendChart';
 import TimeDistributionChart from '@/components/statistics/TimeDistributionChart';
 import ProductivityMetrics from '@/components/statistics/ProductivityMetrics';
+import { InsightsPanel } from '@/components/statistics/InsightsPanel';
 import { useSessions } from '@/hooks/useSessions';
+import { useToast } from '@/contexts/ToastContext';
+import { Download } from 'lucide-react';
+import { downloadBlob } from '@/utils/exportUtils';
 
 export default function StatisticsPage() {
   const [stats, setStats] = useState<DetailedStatsDto | null>(null);
@@ -15,6 +19,7 @@ export default function StatisticsPage() {
 
   // Use sessions hook to detect when sessions change
   const { sessions } = useSessions();
+  const toast = useToast();
 
   // Initialize date range to last 30 days
   const getDefaultDateRange = () => {
@@ -90,6 +95,18 @@ export default function StatisticsPage() {
     });
   };
 
+  const handleExportStats = async (format: 'csv' | 'json') => {
+    try {
+      const blob = await api.sessions.exportStats(format, dateRange.start, dateRange.end);
+      const filename = `statistics-${dateRange.start || 'all'}-to-${dateRange.end || 'now'}.${format}`;
+      downloadBlob(blob, filename);
+      toast.success(`Statistics exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Failed to export statistics:', error);
+      toast.error('Failed to export statistics');
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -136,7 +153,27 @@ export default function StatisticsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Export Buttons */}
+          <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg p-1 shadow-sm border border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => handleExportStats('csv')}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              title="Export as CSV"
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </button>
+            <button
+              onClick={() => handleExportStats('json')}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+              title="Export as JSON"
+            >
+              <Download className="w-4 h-4" />
+              JSON
+            </button>
+          </div>
+
           {/* Quick Range Buttons */}
           <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg p-1 shadow-sm border border-gray-200 dark:border-gray-700">
             <button
@@ -247,6 +284,9 @@ export default function StatisticsPage() {
 
       {/* Productivity Metrics */}
       <ProductivityMetrics data={stats?.productivity || null} />
+
+      {/* Insights Panel */}
+      {stats && <InsightsPanel stats={stats} />}
     </div>
   );
 }

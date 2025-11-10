@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { api } from '@/services/api';
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/services/api'
 import type {
   SessionResponse,
   CreateSessionDto,
@@ -7,166 +8,214 @@ import type {
   SessionFilters,
   BulkCreateSessionDto,
   BulkCreateResult,
-} from '@repo/shared-types';
+} from '@repo/shared-types'
 
 export function useSessions(initialFilters?: SessionFilters) {
-  const [sessions, setSessions] = useState<SessionResponse[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [filters, setFilters] = useState<SessionFilters | undefined>(initialFilters);
-  const filtersRef = useRef(filters);
+  const queryClient = useQueryClient()
+  const [filters, setFilters] = useState<SessionFilters | undefined>(initialFilters)
 
-  // Keep ref in sync with filters state
-  useEffect(() => {
-    filtersRef.current = filters;
-  }, [filters]);
+  // Query for fetching sessions
+  const {
+    data: sessions = [],
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['sessions', filters],
+    queryFn: async () => {
+      const response = await api.sessions.getAll(filters)
 
-  const fetchSessions = useCallback(async (filterOverride?: SessionFilters) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.sessions.getAll(filterOverride || filtersRef.current);
-      
       // Validate and normalize the response structure
-      let sessionsData: SessionResponse[] = [];
-      
+      let sessionsData: SessionResponse[] = []
+
       if (response && typeof response === 'object') {
-        // Handle different possible response structures
         if (Array.isArray(response.data)) {
-          sessionsData = response.data;
+          sessionsData = response.data
         } else if (response.data && Array.isArray(response.data.data)) {
-          sessionsData = response.data.data;
+          sessionsData = response.data.data
         } else if (Array.isArray(response)) {
-          sessionsData = response;
+          sessionsData = response
         }
       }
-      
+
       // Validate each session object
-      const validatedSessions = sessionsData.filter(session => 
-        session && 
-        typeof session === 'object' && 
-        session.id && 
-        session.category && 
-        session.status
-      );
-      
-      setSessions(validatedSessions);
-    } catch (err) {
-      console.error('Error fetching sessions:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch sessions'));
-      setSessions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return sessionsData.filter(
+        (session) =>
+          session &&
+          typeof session === 'object' &&
+          session.id &&
+          session.category &&
+          session.status
+      )
+    },
+  })
 
-  const createSession = useCallback(async (dto: CreateSessionDto) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.sessions.create(dto);
-      
-      // Handle API response structure: ApiResponse<SessionResponse>
-      let newSession: SessionResponse | null = null;
-      
+  // Mutation for creating a session
+  const createSessionMutation = useMutation({
+    mutationFn: async (dto: CreateSessionDto) => {
+      const response = await api.sessions.create(dto)
       if (response && typeof response === 'object' && response.data) {
-        // The response should be ApiResponse<SessionResponse> with data property
-        newSession = response.data;
+        return response.data
       }
-      
-      if (newSession) {
-        setSessions((prev) => [newSession, ...prev]);
-        return newSession;
-      } else {
-        throw new Error('Invalid response format from session creation');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to create session'));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      throw new Error('Invalid response format from session creation')
+    },
+    onMutate: async (newSession) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['sessions', filters] })
 
-  const updateSession = useCallback(async (id: string, dto: UpdateSessionDto) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.sessions.update(id, dto);
-      
-      // Handle API response structure: ApiResponse<SessionResponse>
-      let updatedSession: SessionResponse | null = null;
-      
+      // Snapshot previous value
+      const previousSessions = queryClient.getQueryData<SessionResponse[]>(['sessions', filters])
+
+      // Optimistically update cache
+      const tempId = `temp-${Date.now()}`
+      const optimisticSession: SessionResponse = {
+        id: tempId,
+        title: newSession.title,
+        description: newSession.description || null,
+        category: newSession.category,
+        status: newSession.status || ('planned' as any),
+        priority: newSession.priority || ('medium' as any),
+        duration: newSession.duration,
+        actualDuration: null,
+        color: newSession.color || null,
+        tags: newSession.tags || [],
+        notes: newSession.notes || null,
+        scheduledFor: newSession.scheduledFor || null,
+        startedAt: null,
+        completedAt: null,
+        userId: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      // Only add optimistically if it matches current filters
+      const matchesFilters =
+        (!filters?.category || optimisticSession.category === filters.category) &&
+        (!filters?.status ||
+          (Array.isArray(filters.status)
+            ? filters.status.includes(optimisticSession.status)
+            : filters.status === optimisticSession.status)) &&
+        (!filters?.priority ||
+          (Array.isArray(filters.priority)
+            ? filters.priority.includes(optimisticSession.priority)
+            : filters.priority === optimisticSession.priority))
+
+      if (matchesFilters) {
+        queryClient.setQueryData<SessionResponse[]>(
+          ['sessions', filters],
+          (old) => [optimisticSession, ...(old || [])]
+        )
+      }
+
+      return { previousSessions }
+    },
+    onError: (err, newSession, context) => {
+      // Rollback on error
+      queryClient.setQueryData(['sessions', filters], context?.previousSessions)
+    },
+    onSuccess: () => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
+  })
+
+  // Mutation for updating a session
+  const updateSessionMutation = useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateSessionDto }) => {
+      const response = await api.sessions.update(id, dto)
       if (response && typeof response === 'object' && response.data) {
-        // The response should be ApiResponse<SessionResponse> with data property
-        updatedSession = response.data;
+        return response.data
       }
-      
-      if (updatedSession) {
-        setSessions((prev) =>
-          prev.map((session) => (session.id === id ? updatedSession! : session))
-        );
-        return updatedSession;
-      } else {
-        throw new Error('Invalid response format from session update');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to update session'));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      throw new Error('Invalid response format from session update')
+    },
+    onMutate: async ({ id, dto }) => {
+      await queryClient.cancelQueries({ queryKey: ['sessions', filters] })
 
-  const deleteSession = useCallback(async (id: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await api.sessions.delete(id);
-      setSessions((prev) => prev.filter((session) => session.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to delete session'));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const previousSessions = queryClient.getQueryData<SessionResponse[]>(['sessions', filters])
 
-  const bulkCreateSessions = useCallback(async (dto: BulkCreateSessionDto): Promise<BulkCreateResult> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.sessions.bulkCreate(dto);
-      const result = response.data;
-      if (result && result.successful && result.successful.length > 0) {
-        setSessions((prev) => [...result.successful, ...prev]);
-      }
-      return result || { successful: [], failed: [], totalCreated: 0, totalFailed: 0 };
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to bulk create sessions'));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      // Optimistically update
+      queryClient.setQueryData<SessionResponse[]>(['sessions', filters], (old) =>
+        (old || []).map((session) =>
+          session.id === id ? { ...session, ...dto } as SessionResponse : session
+        )
+      )
 
-  const refetch = useCallback(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+      return { previousSessions }
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['sessions', filters], context?.previousSessions)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
+  })
 
-  const updateFilters = useCallback((newFilters: SessionFilters) => {
-    setFilters(newFilters);
-  }, []);
+  // Mutation for deleting a session
+  const deleteSessionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.sessions.delete(id)
+      return id
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['sessions', filters] })
 
-  useEffect(() => {
-    fetchSessions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+      const previousSessions = queryClient.getQueryData<SessionResponse[]>(['sessions', filters])
+
+      // Optimistically remove
+      queryClient.setQueryData<SessionResponse[]>(['sessions', filters], (old) =>
+        (old || []).filter((session) => session.id !== id)
+      )
+
+      return { previousSessions }
+    },
+    onError: (err, id, context) => {
+      queryClient.setQueryData(['sessions', filters], context?.previousSessions)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
+  })
+
+  // Mutation for bulk creating sessions
+  const bulkCreateSessionsMutation = useMutation({
+    mutationFn: async (dto: BulkCreateSessionDto): Promise<BulkCreateResult> => {
+      const response = await api.sessions.bulkCreate(dto)
+      return response.data || { successful: [], failed: [], totalCreated: 0, totalFailed: 0 }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
+  })
+
+  // Helper functions
+  const createSession = async (dto: CreateSessionDto) => {
+    return createSessionMutation.mutateAsync(dto)
+  }
+
+  const updateSession = async (id: string, dto: UpdateSessionDto) => {
+    return updateSessionMutation.mutateAsync({ id, dto })
+  }
+
+  const deleteSession = async (id: string) => {
+    return deleteSessionMutation.mutateAsync(id)
+  }
+
+  const bulkCreateSessions = async (dto: BulkCreateSessionDto) => {
+    return bulkCreateSessionsMutation.mutateAsync(dto)
+  }
+
+  const updateFilters = (newFilters: Partial<SessionFilters>) => {
+    setFilters((prev) => ({ ...(prev || {}), ...newFilters }))
+  }
+
+  const fetchSessions = () => {
+    refetch()
+  }
 
   return {
     sessions,
     loading,
-    error,
+    error: error as Error | null,
     filters,
     fetchSessions,
     createSession,
@@ -175,5 +224,5 @@ export function useSessions(initialFilters?: SessionFilters) {
     deleteSession,
     refetch,
     updateFilters,
-  };
+  }
 }

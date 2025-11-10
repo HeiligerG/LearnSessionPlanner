@@ -17,6 +17,12 @@ import type {
   DetailedStatsDto,
   BulkCreateSessionDto,
   BulkCreateResult,
+  BulkUpdateSessionDto,
+  BulkOperationResult,
+  ExportFormat,
+  SessionSuggestionDto,
+  GamificationSummaryDto,
+  AchievementDto,
   RecurrencePattern,
   SessionResponse,
 } from '@repo/shared-types';
@@ -961,4 +967,410 @@ export class SessionsService {
 
     return this.transformSessions(sessions);
   }
+
+  /**
+   * Bulk update sessions
+   */
+  async bulkUpdate(
+    userId: string,
+    dto: BulkUpdateSessionDto,
+  ): Promise<BulkOperationResult> {
+    const successful: string[] = [];
+    const failed: Array<{ id: string; error: string }> = [];
+
+    for (const sessionId of dto.sessionIds) {
+      try {
+        // Verify ownership
+        const session = await this.prisma.session.findFirst({
+          where: { id: sessionId, userId },
+        });
+
+        if (!session) {
+          failed.push({ id: sessionId, error: 'Session not found or access denied' });
+          continue;
+        }
+
+        // Prepare update data
+        const updateData: any = {};
+        if (dto.updates.title !== undefined) updateData.title = dto.updates.title;
+        if (dto.updates.description !== undefined) updateData.description = dto.updates.description;
+        if (dto.updates.category !== undefined) updateData.category = dto.updates.category.toUpperCase();
+        if (dto.updates.status !== undefined) updateData.status = dto.updates.status.toUpperCase();
+        if (dto.updates.priority !== undefined) updateData.priority = dto.updates.priority.toUpperCase();
+        if (dto.updates.duration !== undefined) updateData.duration = dto.updates.duration;
+        if (dto.updates.actualDuration !== undefined) updateData.actualDuration = dto.updates.actualDuration;
+        if (dto.updates.color !== undefined) updateData.color = dto.updates.color;
+        if (dto.updates.tags !== undefined) updateData.tags = dto.updates.tags;
+        if (dto.updates.notes !== undefined) updateData.notes = dto.updates.notes;
+        if (dto.updates.scheduledFor !== undefined) {
+          updateData.scheduledFor = dto.updates.scheduledFor ? new Date(dto.updates.scheduledFor) : null;
+        }
+        if (dto.updates.startedAt !== undefined) {
+          updateData.startedAt = dto.updates.startedAt ? new Date(dto.updates.startedAt) : null;
+        }
+        if (dto.updates.completedAt !== undefined) {
+          updateData.completedAt = dto.updates.completedAt ? new Date(dto.updates.completedAt) : null;
+        }
+
+        await this.prisma.session.update({
+          where: { id: sessionId },
+          data: updateData,
+        });
+
+        successful.push(sessionId);
+      } catch (error) {
+        failed.push({
+          id: sessionId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return {
+      successful,
+      failed,
+      totalProcessed: dto.sessionIds.length,
+    };
+  }
+
+  /**
+   * Bulk delete sessions
+   */
+  async bulkDelete(
+    userId: string,
+    sessionIds: string[],
+  ): Promise<BulkOperationResult> {
+    const successful: string[] = [];
+    const failed: Array<{ id: string; error: string }> = [];
+
+    for (const sessionId of sessionIds) {
+      try {
+        // Verify ownership and delete
+        const result = await this.prisma.session.deleteMany({
+          where: { id: sessionId, userId },
+        });
+
+        if (result.count === 0) {
+          failed.push({ id: sessionId, error: 'Session not found or access denied' });
+        } else {
+          successful.push(sessionId);
+        }
+      } catch (error) {
+        failed.push({
+          id: sessionId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return {
+      successful,
+      failed,
+      totalProcessed: sessionIds.length,
+    };
+  }
+
+  /**
+   * Export sessions to CSV or JSON
+   */
+  async exportSessions(
+    userId: string,
+    format: ExportFormat,
+    filters?: SessionFilters,
+  ): Promise<string> {
+    // Fetch sessions with filters
+    const result = await this.findAll(userId, filters);
+    const sessions = result.data;
+
+    if (format === 'csv') {
+      // CSV format
+      const headers = [
+        'ID',
+        'Title',
+        'Description',
+        'Category',
+        'Status',
+        'Priority',
+        'Duration',
+        'Actual Duration',
+        'Scheduled For',
+        'Started At',
+        'Completed At',
+        'Tags',
+        'Notes',
+        'Created At',
+      ];
+
+      const escapeCSV = (value: any): string => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      let csv = headers.join(',') + '\n';
+
+      for (const session of sessions) {
+        const row = [
+          escapeCSV(session.id),
+          escapeCSV(session.title),
+          escapeCSV(session.description),
+          escapeCSV(session.category),
+          escapeCSV(session.status),
+          escapeCSV(session.priority),
+          escapeCSV(session.duration),
+          escapeCSV(session.actualDuration),
+          escapeCSV(session.scheduledFor),
+          escapeCSV(session.startedAt),
+          escapeCSV(session.completedAt),
+          escapeCSV(session.tags.join(',')),
+          escapeCSV(session.notes),
+          escapeCSV(session.createdAt),
+        ];
+        csv += row.join(',') + '\n';
+      }
+
+      return csv;
+    } else {
+      // JSON format
+      return JSON.stringify(sessions, null, 2);
+    }
+  }
+
+  /**
+   * Generate session suggestions based on user patterns
+   */
+  async generateSuggestions(userId: string): Promise<SessionSuggestionDto[]> {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (sessions.length === 0) {
+      return [];
+    }
+
+    const suggestions: SessionSuggestionDto[] = [];
+
+    // Analyze patterns
+    const categoryFrequency = new Map<string, number>();
+    const categoryDurations = new Map<string, number[]>();
+    const tagFrequency = new Map<string, number>();
+
+    sessions.forEach((session) => {
+      // Category frequency
+      const cat = session.category.toLowerCase();
+      categoryFrequency.set(cat, (categoryFrequency.get(cat) || 0) + 1);
+
+      // Category average duration
+      if (!categoryDurations.has(cat)) {
+        categoryDurations.set(cat, []);
+      }
+      categoryDurations.get(cat)!.push(session.duration);
+
+      // Tag frequency
+      session.tags.forEach((tag) => {
+        tagFrequency.set(tag, (tagFrequency.get(tag) || 0) + 1);
+      });
+    });
+
+    // Get most common categories
+    const sortedCategories = Array.from(categoryFrequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    // Generate suggestions based on most common categories
+    for (const [category, count] of sortedCategories) {
+      const durations = categoryDurations.get(category) || [];
+      const avgDuration = Math.round(
+        durations.reduce((sum, d) => sum + d, 0) / durations.length,
+      );
+
+      // Find common tags for this category
+      const categoryTags = sessions
+        .filter((s) => s.category.toLowerCase() === category)
+        .flatMap((s) => s.tags);
+      const uniqueTags = Array.from(new Set(categoryTags)).slice(0, 3);
+
+      suggestions.push({
+        suggestedTitle: `${category.charAt(0).toUpperCase() + category.slice(1)} Session`,
+        suggestedCategory: category as any,
+        suggestedDuration: avgDuration,
+        suggestedTags: uniqueTags,
+        reason: `You often study ${category} for ${avgDuration} minutes (${count} sessions)`,
+        confidence: Math.min(count / sessions.length, 0.9),
+      });
+    }
+
+    // Check for categories not studied recently (within 14 days)
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const allCategories = new Set(sessions.map((s) => s.category.toLowerCase()));
+    const recentCategories = new Set(
+      sessions
+        .filter((s) => new Date(s.createdAt) > twoWeeksAgo)
+        .map((s) => s.category.toLowerCase()),
+    );
+
+    for (const category of allCategories) {
+      if (!recentCategories.has(category) && suggestions.length < 5) {
+        const durations = categoryDurations.get(category) || [];
+        const avgDuration = Math.round(
+          durations.reduce((sum, d) => sum + d, 0) / durations.length,
+        );
+
+        suggestions.push({
+          suggestedTitle: `Review ${category.charAt(0).toUpperCase() + category.slice(1)}`,
+          suggestedCategory: category as any,
+          suggestedDuration: avgDuration,
+          suggestedTags: [],
+          reason: `You haven't practiced ${category} in over 2 weeks`,
+          confidence: 0.7,
+        });
+      }
+    }
+
+    return suggestions.slice(0, 5);
+  }
+
+  /**
+   * Get gamification summary (achievements, streaks, level)
+   */
+  async getGamificationSummary(userId: string): Promise<GamificationSummaryDto> {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    const completedSessions = sessions.filter((s) => s.status === 'COMPLETED');
+    const totalCompleted = completedSessions.length;
+
+    // Calculate current streak
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let tempStreak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const completedDates = completedSessions
+      .filter((s) => s.completedAt)
+      .map((s) => {
+        const date = new Date(s.completedAt!);
+        date.setHours(0, 0, 0, 0);
+        return date.getTime();
+      })
+      .sort((a, b) => b - a);
+
+    const uniqueDates = Array.from(new Set(completedDates));
+
+    if (uniqueDates.length > 0) {
+      const todayTime = today.getTime();
+      const yesterdayTime = todayTime - 24 * 60 * 60 * 1000;
+
+      if (uniqueDates[0] === todayTime || uniqueDates[0] === yesterdayTime) {
+        currentStreak = 1;
+        let lastDate = uniqueDates[0];
+
+        for (let i = 1; i < uniqueDates.length; i++) {
+          const dayDiff = (lastDate - uniqueDates[i]) / (24 * 60 * 60 * 1000);
+          if (dayDiff === 1) {
+            currentStreak++;
+            lastDate = uniqueDates[i];
+          } else {
+            break;
+          }
+        }
+      }
+
+      // Calculate longest streak
+      tempStreak = 1;
+      for (let i = 1; i < uniqueDates.length; i++) {
+        const dayDiff = (uniqueDates[i - 1] - uniqueDates[i]) / (24 * 60 * 60 * 1000);
+        if (dayDiff === 1) {
+          tempStreak++;
+          longestStreak = Math.max(longestStreak, tempStreak);
+        } else {
+          tempStreak = 1;
+        }
+      }
+      longestStreak = Math.max(longestStreak, tempStreak, currentStreak);
+    }
+
+    // Define achievements
+    const achievements: AchievementDto[] = [
+      {
+        id: 'first-session',
+        name: 'Getting Started',
+        description: 'Complete your first session',
+        icon: 'Star',
+        unlockedAt: totalCompleted >= 1 ? completedSessions[0].completedAt!.toISOString() : null,
+        progress: Math.min(totalCompleted / 1, 1) * 100,
+        category: 'Getting Started',
+      },
+      {
+        id: 'ten-sessions',
+        name: 'Dedicated Learner',
+        description: 'Complete 10 sessions',
+        icon: 'Target',
+        unlockedAt: totalCompleted >= 10 ? completedSessions[9].completedAt!.toISOString() : null,
+        progress: Math.min(totalCompleted / 10, 1) * 100,
+        category: 'Milestones',
+      },
+      {
+        id: 'fifty-sessions',
+        name: 'Committed Student',
+        description: 'Complete 50 sessions',
+        icon: 'Award',
+        unlockedAt: totalCompleted >= 50 ? completedSessions[49].completedAt!.toISOString() : null,
+        progress: Math.min(totalCompleted / 50, 1) * 100,
+        category: 'Milestones',
+      },
+      {
+        id: 'hundred-sessions',
+        name: 'Master Learner',
+        description: 'Complete 100 sessions',
+        icon: 'Trophy',
+        unlockedAt: totalCompleted >= 100 ? completedSessions[99].completedAt!.toISOString() : null,
+        progress: Math.min(totalCompleted / 100, 1) * 100,
+        category: 'Milestones',
+      },
+      {
+        id: 'seven-day-streak',
+        name: 'Week Warrior',
+        description: 'Maintain a 7-day streak',
+        icon: 'Flame',
+        unlockedAt: longestStreak >= 7 ? new Date().toISOString() : null,
+        progress: Math.min(longestStreak / 7, 1) * 100,
+        category: 'Consistency',
+      },
+      {
+        id: 'thirty-day-streak',
+        name: 'Month Master',
+        description: 'Maintain a 30-day streak',
+        icon: 'Zap',
+        unlockedAt: longestStreak >= 30 ? new Date().toISOString() : null,
+        progress: Math.min(longestStreak / 30, 1) * 100,
+        category: 'Consistency',
+      },
+    ];
+
+    // Calculate level and XP
+    const level = Math.floor(totalCompleted / 10) + 1;
+    const experiencePoints = totalCompleted * 10;
+    const nextLevelThreshold = level * 10 * 10;
+
+    return {
+      currentStreak,
+      longestStreak,
+      totalSessionsCompleted: totalCompleted,
+      achievements,
+      level,
+      experiencePoints,
+      nextLevelThreshold,
+    };
+  }
+
 }

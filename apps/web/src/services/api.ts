@@ -24,6 +24,11 @@ import type {
   TrendDataPoint,
   BulkCreateSessionDto,
   BulkCreateResult,
+  BulkUpdateSessionDto,
+  BulkOperationResult,
+  ExportFormat,
+  SessionSuggestionDto,
+  GamificationSummaryDto,
   CreateTemplateDto,
   UpdateTemplateDto,
   TemplateResponse,
@@ -402,6 +407,18 @@ export const api = {
     getAll(filters?: SessionFilters): Promise<ApiResponse<SessionsListResponse>> {
       const params = new URLSearchParams()
       if (filters?.category) params.append('category', filters.category)
+      if (filters?.status) {
+        const statuses = Array.isArray(filters.status) ? filters.status : [filters.status]
+        statuses.forEach(s => params.append('status', s))
+      }
+      if (filters?.priority) {
+        const priorities = Array.isArray(filters.priority) ? filters.priority : [filters.priority]
+        priorities.forEach(p => params.append('priority', p))
+      }
+      if (filters?.tags) {
+        filters.tags.forEach(tag => params.append('tags', tag))
+      }
+      if (filters?.search) params.append('search', filters.search)
       if (filters?.completed !== undefined) params.append('completed', String(filters.completed))
       if (filters?.scheduledFrom) params.append('scheduledFrom', filters.scheduledFrom)
       if (filters?.scheduledTo) params.append('scheduledTo', filters.scheduledTo)
@@ -535,7 +552,7 @@ export const api = {
      */
     async downloadSample(format: 'csv' | 'json' | 'xml'): Promise<Blob> {
       const url = `${API_URL}/sessions/sample/${format}`
-      
+
       // Ensure CSRF token
       await ensureCsrfToken()
 
@@ -563,6 +580,107 @@ export const api = {
       }
 
       return await response.blob()
+    },
+
+    /**
+     * Bulk update sessions
+     */
+    bulkUpdate(dto: BulkUpdateSessionDto): Promise<ApiResponse<BulkOperationResult>> {
+      return apiClient.post<ApiResponse<BulkOperationResult>>('/sessions/bulk-update', dto)
+    },
+
+    /**
+     * Bulk delete sessions
+     */
+    bulkDelete(sessionIds: string[]): Promise<ApiResponse<BulkOperationResult>> {
+      return apiClient.post<ApiResponse<BulkOperationResult>>('/sessions/bulk-delete', { sessionIds })
+    },
+
+    /**
+     * Export sessions to CSV or JSON
+     */
+    async exportSessions(format: ExportFormat, filters?: SessionFilters): Promise<Blob> {
+      const params = new URLSearchParams()
+      params.append('format', format)
+      if (filters?.category) params.append('category', filters.category)
+      if (filters?.status) {
+        const statuses = Array.isArray(filters.status) ? filters.status : [filters.status]
+        statuses.forEach(s => params.append('status', s))
+      }
+      if (filters?.priority) {
+        const priorities = Array.isArray(filters.priority) ? filters.priority : [filters.priority]
+        priorities.forEach(p => params.append('priority', p))
+      }
+      if (filters?.search) params.append('search', filters.search)
+      if (filters?.scheduledFrom) params.append('scheduledFrom', filters.scheduledFrom)
+      if (filters?.scheduledTo) params.append('scheduledTo', filters.scheduledTo)
+
+      const url = `${API_URL}/sessions/export?${params.toString()}`
+
+      // Ensure CSRF token
+      await ensureCsrfToken()
+
+      const headers: Record<string, string> = {}
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`
+      }
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new ApiError(
+          errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          errorData
+        )
+      }
+
+      return await response.blob()
+    },
+
+    /**
+     * Get session suggestions based on user patterns
+     */
+    getSuggestions(): Promise<ApiResponse<SessionSuggestionDto[]>> {
+      return apiClient.get<ApiResponse<SessionSuggestionDto[]>>('/sessions/suggestions')
+    },
+
+    /**
+     * Get gamification summary (achievements, streaks, level)
+     */
+    getGamification(): Promise<ApiResponse<GamificationSummaryDto>> {
+      return apiClient.get<ApiResponse<GamificationSummaryDto>>('/sessions/gamification')
+    },
+
+    /**
+     * Export statistics as CSV or JSON
+     */
+    async exportStats(format: 'csv' | 'json', startDate?: string, endDate?: string): Promise<Blob> {
+      const params = new URLSearchParams()
+      params.append('format', format)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+
+      const query = params.toString() ? `?${params.toString()}` : ''
+      const response = await fetch(`${API_URL}/sessions/export/stats${query}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to export statistics')
+      }
+
+      return response.blob()
     },
   },
 
