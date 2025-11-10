@@ -17,7 +17,7 @@ const CATEGORIES: SessionCategory[] = ['school', 'programming', 'language', 'per
 
 export function TemplateModal({ isOpen, onClose, onSelectTemplate }: TemplateModalProps) {
   const { templates, loading, searchTemplates } = useTemplates();
-  const { isFavorite, toggleFavorite } = useFavorites('templates');
+  const { isFavoriteTemplate, toggleFavoriteTemplate } = useFavorites();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredTemplates, setFilteredTemplates] = useState<TemplateResponse[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateResponse | null>(null);
@@ -62,7 +62,7 @@ export function TemplateModal({ isOpen, onClose, onSelectTemplate }: TemplateMod
   // Comment 4: Toggle favorite without selecting
   const handleToggleFavorite = (e: React.MouseEvent, templateId: string) => {
     e.stopPropagation();
-    toggleFavorite(templateId);
+    toggleFavoriteTemplate(templateId);
   };
 
   // Comment 4: Group templates by category for display
@@ -182,13 +182,13 @@ export function TemplateModal({ isOpen, onClose, onSelectTemplate }: TemplateMod
                               <button
                                 onClick={(e) => handleToggleFavorite(e, template.id)}
                                 className={`p-1 rounded transition-colors ${
-                                  isFavorite(template.id)
+                                  isFavoriteTemplate(template.id)
                                     ? 'text-yellow-500 hover:text-yellow-600'
                                     : 'text-gray-400 hover:text-yellow-500'
                                 }`}
-                                aria-label={isFavorite(template.id) ? 'Remove from favorites' : 'Add to favorites'}
+                                aria-label={isFavoriteTemplate(template.id) ? 'Remove from favorites' : 'Add to favorites'}
                               >
-                                <Star className={`h-4 w-4 ${isFavorite(template.id) ? 'fill-current' : ''}`} />
+                                <Star className={`h-4 w-4 ${isFavoriteTemplate(template.id) ? 'fill-current' : ''}`} />
                               </button>
                               {/* Comment 4: Quick apply button */}
                               <button
@@ -229,13 +229,13 @@ export function TemplateModal({ isOpen, onClose, onSelectTemplate }: TemplateMod
                         <button
                           onClick={(e) => handleToggleFavorite(e, template.id)}
                           className={`p-1 rounded transition-colors ${
-                            isFavorite(template.id)
+                            isFavoriteTemplate(template.id)
                               ? 'text-yellow-500 hover:text-yellow-600'
                               : 'text-gray-400 hover:text-yellow-500'
                           }`}
-                          aria-label={isFavorite(template.id) ? 'Remove from favorites' : 'Add to favorites'}
+                          aria-label={isFavoriteTemplate(template.id) ? 'Remove from favorites' : 'Add to favorites'}
                         >
-                          <Star className={`h-4 w-4 ${isFavorite(template.id) ? 'fill-current' : ''}`} />
+                          <Star className={`h-4 w-4 ${isFavoriteTemplate(template.id) ? 'fill-current' : ''}`} />
                         </button>
                         <button
                           onClick={(e) => handleQuickApply(e, template)}
