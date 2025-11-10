@@ -344,6 +344,10 @@ export default function DashboardPage() {
         <CalendarView
           sessions={sessions.filter(s => s != null)}
           onSessionClick={handleSessionClick}
+          onDateClick={(date) => {
+            setSelectedSession(null);
+            setShowSessionForm(true);
+          }}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
